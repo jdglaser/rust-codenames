@@ -4,6 +4,7 @@ import {
   BrowserRouter, Route, Routes
 } from "react-router-dom";
 import App from './App';
+import Chat from './Chat';
 import './index.css';
 import Items from './Items';
 
@@ -12,6 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
+        <Route path="/chat/:room" element={<Chat />} />
         <Route path="/items" element={<Items />} />
         <Route path="/" element={<App />} />
       </Routes>
