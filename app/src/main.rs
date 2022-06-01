@@ -1,5 +1,5 @@
 use actix_web::FromRequest;
-use actix::{Actor, StreamHandler};
+use actix::{Actor, StreamHandler, Addr};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, HttpRequest, Responder, middleware::Logger, Result, Error};
 use actix_web::http::header::{ContentDisposition, DispositionType, ContentType, LOCATION, HeaderValue};
 use actix_files as fs;
@@ -10,8 +10,12 @@ use serde::{Serialize, Deserialize};
 use actix_web_actors::ws;
 
 mod chat_server;
+mod event;
+mod server;
+mod client;
 
-use chat_server::{ChatServer};
+use client::ChatClient;
+use server::ChatServer;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Item {
@@ -20,33 +24,11 @@ struct Item {
     weight: f64
 }
 
-/// Define HTTP actor
-struct User;
-
-impl Actor for User {
-    type Context = ws::WebsocketContext<Self>;
-}
-
-/// Handler for ws::Message message
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for User {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Text(text)) => {
-                info!("Got a text message");
-                ctx.text(text)
-            },
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
-            _ => (println!("uh oh")),
-        }
-    }
-}
-
-async fn ws_index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    info!("HERE");
-    let room = req.match_info().query("room");
-    let resp = ws::start(User {}, &req, stream);
-    println!("{:?}", resp);
+async fn ws_index(path: web::Path<String>, req: HttpRequest, stream: web::Payload, data: web::Data<Addr<ChatServer>>) -> Result<HttpResponse, Error> {
+    let room = path.into_inner();
+    let resp = ws::start(
+        ChatClient::new(data.get_ref().clone(), room.to_string()), &req, stream
+    );
     resp
 }
 
@@ -78,8 +60,11 @@ async fn main() -> std::io::Result<()> {
 
     info!("Starting!");
 
+    let chat_server = ChatServer::new().start();
+
     HttpServer::new(
-        || App::new()
+        move || App::new()
+            .app_data(web::Data::new(chat_server.clone()))
             .service(
                 web::scope("/api")
                     .service(get_items)

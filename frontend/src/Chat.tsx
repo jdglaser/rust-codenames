@@ -1,46 +1,72 @@
-import { useEffect, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+
+// const uri = ((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws/" + (room ?? "main");
+// const socket = new WebSocket(uri);
+
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 
 export default function Chat() {
-  const [ws, setWs] = useState<WebSocket>();
-  const [msg, setMsg] = useState<string>("");
+  const { room } = useParams();
 
-  const {room} = useParams();
+  const [message, setMessage] = useState<string>("");
+  const [messages, setMessages] = useState<string[]>([]);
 
-  const location = useLocation();
-
-  const state = location.state as Record<string, string>;
+  const webSocket = useRef<WebSocket | null>(null);
+  const messagesEndRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    console.log("Setting up websocket connection");
     const uri = ((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws/" + (room ?? "main");
-    let socket = new WebSocket(uri);
-    console.log(uri);
+    webSocket.current = new WebSocket(uri);
 
-    socket.onopen = () => {
-     console.log("WS OPEN") 
+    webSocket.current.onopen = () => {
+      console.log("WEBSOCKET OPEN");
     }
+    
+    webSocket.current.onmessage = (msg) => {
+      console.log("MESSAGE: ", msg.data);
+      setMessages(prev => [...prev, msg.data]);
+    };
 
-    // message received - show the message in div#messages
-    socket.onmessage = function(event) {
-      let message = event.data;
+    return () => webSocket.current?.close()
+  }, []);
 
-      console.log("MESSAGE RECIEVED: ", message);
+  function scrollToBottom() {
+    if (messagesEndRef.current === null) {
+      return;
     }
+    messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+  }
 
-    setWs(socket);
-  }, [])
+  useEffect(scrollToBottom, [messages]);
+
+  function sendMessage() {
+    webSocket.current?.send(JSON.stringify(
+      {
+        type: "Message",
+        data: {text: message}
+      }
+    ))
+    setMessage("");
+  }
 
   return (
     <>
-      <h1>Chat {state.userName}</h1>
+      <h1>Hi! Welcome to {room}</h1>
       <input type="text"
-             onChange={(evt) => {
-               evt.preventDefault();
-               setMsg(evt.target.value);
-              }}
-              value={msg} />
-      <button onClick={() => ws?.send(msg)}>Submit</button>
+                  onChange={(evt) => {
+                      evt.preventDefault();
+                      setMessage(evt.target.value)
+                  }}
+                  value={message} />
+      <div className='buttons'>
+        <button onClick={() => sendMessage()} disabled={message === ""}>Send</button>
+      </div>
+      <div className="messages" style={{border: "1px solid black", maxHeight: "50vh", overflow: "scroll"}}>
+        {messages.map(msg => (
+          <div key={msg}>{msg}</div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
     </>
   )
 }
