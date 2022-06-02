@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use actix::{Addr, Actor, fut, Running, Handler, StreamHandler, AsyncContext, WrapFuture, ActorFutureExt, ActorContext, ContextFutureSpawner};
 use actix_web_actors::ws::{self, WebsocketContext};
-use log::{info, error, warn};
+use log::{info, error, warn, debug};
 
 use crate::{server::ChatServer, event::{Event, NewClientMessage, EventMessage, ClientMessage}};
 
@@ -27,7 +27,7 @@ impl ChatClient {
                 warn!("Session id {} timed out. Disconnecting.", act.id);
 
                 // notify chat server
-                act.server.do_send(EventMessage { room: act.room.clone(), event: Event::Disconnect { id: act.id } });
+                act.server.do_send(EventMessage { room: act.room.clone(), event: Event::TimedOut { id: act.id } });
 
                 // stop actor
                 ctx.stop();
@@ -82,7 +82,10 @@ impl Handler<EventMessage> for ChatClient {
         let EventMessage {event, room} = event_message;
         match event {
             Event::Connect {id} => ctx.text(format!("{} joined room {}.", id, room)),
-            Event::Disconnect { id } => ctx.text(format!("{} left room {}.", id, room)),
+            Event::Disconnect { id } => {
+                ctx.text(format!("{} left room {}.", id, room))
+            },
+            Event::TimedOut { id } => ctx.text(format!("{} has timed out!", id)),
             Event::Message { sender_id, text} => ctx.text(format!("{}: {}", sender_id, text))
         }
     }
@@ -107,6 +110,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChatClient {
                     })
                 }
             },
+            Ok(ws::Message::Close(_)) => {
+                ctx.stop();
+            }
             _ => (warn!("Did not recognize event {:?}", msg)),
         }
     }

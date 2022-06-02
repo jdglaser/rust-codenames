@@ -8,6 +8,7 @@ use crate::client::ChatClient;
 pub enum Event {
     Connect {id: usize},
     Disconnect {id: usize},
+    TimedOut {id: usize},
     Message {sender_id: usize, text: String}
 }
 
