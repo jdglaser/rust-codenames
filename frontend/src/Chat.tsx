@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { v4 } from "uuid";
 
 export default function Chat() {
   const { room } = useParams();
@@ -12,7 +13,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<string[]>([]);
 
   const webSocket = useRef<WebSocket | null>(null);
-  const messagesEndRef = useRef<HTMLElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const uri = ((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws/" + (room ?? "main");
@@ -63,7 +64,7 @@ export default function Chat() {
       </div>
       <div className="messages" style={{border: "1px solid black", maxHeight: "50vh", overflow: "scroll"}}>
         {messages.map(msg => (
-          <div key={msg}>{msg}</div>
+          <div key={v4()}>{msg}</div>
         ))}
         <div ref={messagesEndRef} />
       </div>

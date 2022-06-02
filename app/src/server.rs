@@ -1,10 +1,27 @@
 use std::collections::{HashMap, HashSet};
 
 use actix::{Addr, Actor, Context, Handler};
-use log::info;
+use log::{info, debug};
 use rand::{prelude::ThreadRng, Rng};
 
 use crate::{client::ChatClient, event::{Event, NewClientMessage, EventMessage, self}};
+
+pub enum CardType {
+    RED,
+    BLUE,
+    BYSTANDER,
+    ASSASSIN,
+}
+
+pub struct Card {
+    word: String,
+    card_type: CardType,
+    flipped: bool,
+}
+
+pub struct Game {
+    board: [[Card; 5]; 5]
+}
 
 pub struct ChatServer {
     clients: HashMap<usize, Addr<ChatClient>>,
@@ -25,10 +42,8 @@ impl ChatServer {
             }
 
             for id in &*sessions {
-                //if *id != sender_id {
-                info!("Sending event to id {} with value {:?}", id, event);
+                debug!("Sending event to id {} with value {:?}", id, event);
                 self.clients.get(&id).unwrap().do_send(event_message.clone());
-                //}
             }
         }
     }
@@ -66,11 +81,6 @@ impl Handler<EventMessage> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, event_message: EventMessage, ctx: &mut Self::Context) -> Self::Result {
-        if let EventMessage { ref room, event: Event::Disconnect { id } } = event_message {
-            if let Some(sessions) = self.rooms.get(room) {
-
-            }
-        }
         self.send_event(event_message);
     }
 }

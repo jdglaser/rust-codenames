@@ -9,7 +9,6 @@ use log::{info, debug, trace, error, warn};
 use serde::{Serialize, Deserialize};
 use actix_web_actors::ws;
 
-mod chat_server;
 mod event;
 mod server;
 mod client;
