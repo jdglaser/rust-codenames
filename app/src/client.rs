@@ -4,20 +4,20 @@ use actix::{Addr, Actor, fut, Running, Handler, StreamHandler, AsyncContext, Wra
 use actix_web_actors::ws::{self, WebsocketContext};
 use log::{info, error, warn, debug};
 
-use crate::{server::ChatServer, event::{Event, NewClientMessage, EventMessage, ClientMessage}};
+use crate::{server::WsServer, event::{Event, NewClientMessage, EventMessage, ClientMessage}, game::Board};
 
-pub struct ChatClient {
+pub struct WsClient {
     id: usize,
-    server: Addr<ChatServer>,
-    room: String,
+    server: Addr<WsServer>,
+    room: String, 
     /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
     /// otherwise we drop connection.
     pub hb: Instant,
 }
 
-impl ChatClient {
-    pub fn new(server: Addr<ChatServer>, room: String) -> Self {
-        ChatClient { id: 0, server, room, hb: Instant::now() }
+impl WsClient {
+    pub fn new(server: Addr<WsServer>, room: String) -> Self {
+        WsClient { id: 0, server, room, hb: Instant::now() }
     }
 
     fn hb(&self, ctx: &mut WebsocketContext<Self>) {
@@ -48,7 +48,7 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Make actor from `ChatSession`
-impl Actor for ChatClient {
+impl Actor for WsClient {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -70,28 +70,31 @@ impl Actor for ChatClient {
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // notify chat server
+        println!("STOPPING");
         self.server.do_send(EventMessage {room: self.room.clone(), event: Event::Disconnect { id: self.id }});
         Running::Stop
     }
 }
 
-impl Handler<EventMessage> for ChatClient {
+impl Handler<EventMessage> for WsClient {
     type Result = ();
 
     fn handle(&mut self, event_message: EventMessage, ctx: &mut Self::Context) -> Self::Result {
         let EventMessage {event, room} = event_message;
-        match event {
-            Event::Connect {id} => ctx.text(format!("{} joined room {}.", id, room)),
+
+        ctx.text(serde_json::to_string(&event).unwrap())
+        /*match event {
+            Event::Connect {id, game} => ctx.text(format!("{} joined room {}, game status: {:?}.", id, room, game)),
             Event::Disconnect { id } => {
                 ctx.text(format!("{} left room {}.", id, room))
             },
             Event::TimedOut { id } => ctx.text(format!("{} has timed out!", id)),
             Event::Message { sender_id, text} => ctx.text(format!("{}: {}", sender_id, text))
-        }
+        }*/
     }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChatClient {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsClient {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Ping(msg)) => {

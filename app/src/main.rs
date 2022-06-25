@@ -1,20 +1,18 @@
-use actix_web::FromRequest;
-use actix::{Actor, StreamHandler, Addr};
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, HttpRequest, Responder, middleware::Logger, Result, Error};
-use actix_web::http::header::{ContentDisposition, DispositionType, ContentType, LOCATION, HeaderValue};
+use actix::{Actor, Addr};
+use actix_web::{get, web, App, HttpResponse, HttpServer, HttpRequest, Responder, Result, Error};
 use actix_files as fs;
-use std::io::Read;
-use std::{path::{PathBuf, Path}, fmt::format};
-use log::{info, debug, trace, error, warn};
+use std::{path::{PathBuf}};
+use log::{info};
 use serde::{Serialize, Deserialize};
 use actix_web_actors::ws;
 
 mod event;
 mod server;
 mod client;
+mod game;
 
-use client::ChatClient;
-use server::ChatServer;
+use client::WsClient;
+use server::WsServer;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Item {
@@ -23,10 +21,10 @@ struct Item {
     weight: f64
 }
 
-async fn ws_index(path: web::Path<String>, req: HttpRequest, stream: web::Payload, data: web::Data<Addr<ChatServer>>) -> Result<HttpResponse, Error> {
+async fn ws_index(path: web::Path<String>, req: HttpRequest, stream: web::Payload, data: web::Data<Addr<WsServer>>) -> Result<HttpResponse, Error> {
     let room = path.into_inner();
     let resp = ws::start(
-        ChatClient::new(data.get_ref().clone(), room.to_string()), &req, stream
+        WsClient::new(data.get_ref().clone(), room.to_string()), &req, stream
     );
     resp
 }
@@ -59,7 +57,7 @@ async fn main() -> std::io::Result<()> {
 
     info!("Starting!");
 
-    let chat_server = ChatServer::new().start();
+    let chat_server = WsServer::new().start();
 
     HttpServer::new(
         move || App::new()

@@ -1,19 +1,22 @@
 use actix::{Message, Addr};
 use serde::{Serialize, Deserialize};
 
-use crate::client::ChatClient;
+use crate::{client::WsClient, game::Game};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "data")]
+#[serde(rename_all = "camelCase")]
 pub enum Event {
-    Connect {id: usize},
+    Connect {id: usize, game: Game},
     Disconnect {id: usize},
     TimedOut {id: usize},
+    #[serde(rename_all = "camelCase")]
     Message {sender_id: usize, text: String}
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]
 #[rtype("()")]
+#[serde(rename_all = "camelCase")]
 pub struct EventMessage {
     pub room: String,
     pub event: Event
@@ -21,6 +24,7 @@ pub struct EventMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "data")]
+#[serde(rename_all = "camelCase")]
 pub enum ClientMessage {
     Message {text: String}
 }
@@ -29,5 +33,5 @@ pub enum ClientMessage {
 #[rtype("usize")]
 pub struct NewClientMessage {
     pub room: String,
-    pub addr: Addr<ChatClient>
+    pub addr: Addr<WsClient>
 }
