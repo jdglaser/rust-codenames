@@ -1,17 +1,22 @@
 use actix::{Message, Addr};
 use serde::{Serialize, Deserialize};
 
-use crate::{client::WsClient, game::Game};
+use crate::{client::WsClient, game::{Game, Card}};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "camelCase")]
 pub enum Event {
-    Connect {id: usize, game: Game},
+    Connect {id: usize},
     Disconnect {id: usize},
     TimedOut {id: usize},
     #[serde(rename_all = "camelCase")]
-    Message {sender_id: usize, text: String}
+    Message {sender_id: usize, text: String},
+    // Game events
+    #[serde(rename_all = "camelCase")]
+    FlipCard {flipped_card: Card},
+    NewGame {},
+    GameStateUpdate {game: Game}
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]
@@ -22,16 +27,36 @@ pub struct EventMessage {
     pub event: Event
 }
 
+impl EventMessage {
+    pub fn set_event(&mut self, event: Event) {
+        self.event = event;
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "camelCase")]
-pub enum ClientMessage {
-    Message {text: String}
+pub enum ClientRequestType {
+    Connect {id: usize},
+    Disconnect {id: usize},
+    TimedOut {id: usize},
+    Message {text: String},
+    FlipCard {coord: (usize, usize)},
+    NewGame {}
+}
+
+#[derive(Message, Serialize, Deserialize, Debug, Clone)]
+#[rtype("()")]
+#[serde(rename_all = "camelCase")]
+pub struct ClientRequest {
+    pub sender_id: usize,
+    pub room: String,
+    pub request: ClientRequestType
 }
 
 #[derive(Message)]
 #[rtype("usize")]
-pub struct NewClientMessage {
+pub struct NewClientConnection {
     pub room: String,
     pub addr: Addr<WsClient>
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, hash::Hash, fs::File, io::{BufReader, BufRead}};
+use std::{collections::HashSet, fs::File, io::{BufReader, BufRead}};
 
 use log::{info, debug};
 use rand::{prelude::SliceRandom, Rng};
@@ -51,6 +51,12 @@ impl Card {
     }
 }
 
+impl Card {
+    pub fn flip(&mut self) {
+        self.flipped = true;
+    }
+}
+
 impl Default for Card {
     fn default() -> Self {
         Card::new(String::from(""), CardType::BYSTANDER)
@@ -79,13 +85,17 @@ impl Game {
         }
     }
 
-    pub fn new_from_game(game: Game) -> Self {
+    pub fn new_from_game(game: &Game) -> Self {
         let starting_team = Team::opposite(&game.starting_team);
         return Game { 
-            board: Game::create_board(&Team::opposite(&game.starting_team)), 
+            board: Game::create_board(&starting_team), 
             turn_team: starting_team.clone(), 
             starting_team,
-            sessions: HashSet::new()}
+            sessions: game.sessions.clone()}
+    }
+
+    pub fn new_from_current_game(&self) -> Self {
+        Game::new_from_game(self)
     }
 
     fn fill_card(board: &mut Board, card_type: &CardType) {
@@ -107,7 +117,6 @@ impl Game {
     }
 
     fn create_board(starting_team: &Team) -> Board {
-        let mut board: Board = Default::default();
         let words = Game::get_words();
 
         let mut board: Board = Default::default();
@@ -161,6 +170,13 @@ impl Game {
     pub fn get_board(&self) -> &Board {
         &self.board
     }
+
+    pub fn flip_card(&mut self, coord: (usize, usize)) -> Card {
+        let card = &mut self.board[coord.0][coord.1];
+        card.flip();
+        self.turn_team = Team::opposite(&self.turn_team);
+        card.clone()
+    }
 }
 
 #[cfg(test)]
@@ -182,11 +198,11 @@ mod tests {
     #[test]
     fn fills_card() {
         let mut board: Board = Default::default();
-        for i in 0..3 {
+        for _ in 0..3 {
             Game::fill_card(&mut board, &CardType::BLUE);
         }
 
-        for i in 0..2 {
+        for _ in 0..2 {
             Game::fill_card(&mut board, &CardType::RED);
         }
 
@@ -199,29 +215,14 @@ mod tests {
 
     #[test]
     fn creates_new_board() {
-        
-    }
+        let mut game = Game::new();
+        assert_eq!(find_cards_in_board(&game.board, &CardType::BLUE).len(), 9);
+        assert_eq!(find_cards_in_board(&game.board, &CardType::RED).len(), 8);
+        assert_eq!(find_cards_in_board(&game.board, &CardType::ASSASSIN).len(), 1);
 
-    #[test]
-    fn it_works() {
-        let words = Game::get_words();
-        println!("Words: {:?}", words);
-
-        for i in 0..5 {
-            println!("{}", i);
-        }
-
-        enum Foo {
-            ONE,
-            TWO
-        }
-
-        let t = Foo::TWO;
-
-        while let Foo::TWO = t {
-            println!("Hi");
-            break;
-        }
-        
+        game = Game::new_from_game(&game);
+        assert_eq!(find_cards_in_board(&game.board, &CardType::BLUE).len(), 8);
+        assert_eq!(find_cards_in_board(&game.board, &CardType::RED).len(), 9);
+        assert_eq!(find_cards_in_board(&game.board, &CardType::ASSASSIN).len(), 1);
     }
 }

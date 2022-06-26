@@ -23,12 +23,14 @@ enum EventType {
   Connect = "connect",
   Disconnect = "disconnect",
   TimedOut = "timedOut",
-  Message = "message"
+  Message = "message",
+  GameStateUpdate = "gameStateUpdate",
+  NewGame = "newGame"
 }
 
 interface ConnectEvent {
   type: EventType.Connect, 
-  data: {id: number, game: Game}
+  data: {id: number}
 }
 
 interface DisconnectEvent {
@@ -46,7 +48,17 @@ interface ChatMessageEvent {
   data: {senderId: number, text: string}
 }
 
-type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent
+interface GameStateUpdateEvent {
+  type: EventType.GameStateUpdate
+  data: {game: Game}
+}
+
+interface NewGameEvent {
+  type: EventType.NewGame
+  data: {}
+}
+
+type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | GameStateUpdateEvent | NewGameEvent
 
 function resolveCardType(cardType: CardType): string {
   if (cardType === CardType.BLUE) {
@@ -100,7 +112,6 @@ export default function Room() {
       switch (event.type) {
         case EventType.Connect:
           setMessages(prev => [...prev, `Got a connect message with data: ${event.data.id}`]);
-          setBoard(event.data.game.board)
           break;
         case EventType.Disconnect:
           setMessages(prev => [...prev, `User id ${event.data.id} disconnected from the game!`]);
@@ -110,6 +121,12 @@ export default function Room() {
           break;
         case EventType.Message:
           setMessages(prev => [...prev, `${event.data.senderId}: ${event.data.text}`])
+          break;
+        case EventType.GameStateUpdate:
+          setBoard(event.data.game.board)
+          break;
+        case EventType.NewGame:
+          setMessages(prev => [...prev, "Game restarted!"]);
           break;
         default:
           console.error("Unrecognized event: ", event);
@@ -144,6 +161,15 @@ export default function Room() {
     setMessage("");
   }
 
+  function restartGame() {
+    webSocket.current?.send(JSON.stringify(
+      {
+        type: "newGame",
+        data: {}
+      }
+    ))
+  }
+
   return (
     <>
       <h1>Hi! Welcome to {room}</h1>
@@ -155,6 +181,7 @@ export default function Room() {
                   value={message} />
       <div className='buttons'>
         <button onClick={() => sendMessage()} disabled={message === ""}>Send</button>
+        <button onClick={() => restartGame()}>Restart Game</button>
       </div>
       {board === null ? null : (
         <div style={{display: "grid", gridTemplateColumns: "auto auto auto auto auto", border: "1px solid green"}}>

@@ -4,14 +4,13 @@ use actix::{Addr, Actor, fut, Running, Handler, StreamHandler, AsyncContext, Wra
 use actix_web_actors::ws::{self, WebsocketContext};
 use log::{info, error, warn, debug};
 
-use crate::{server::WsServer, event::{Event, NewClientMessage, EventMessage, ClientMessage}, game::Board};
+use crate::{server::WsServer, event::{Event, NewClientConnection, EventMessage, ClientRequest, ClientRequestType}, game::Board};
 
 pub struct WsClient {
     id: usize,
     server: Addr<WsServer>,
     room: String, 
-    /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
-    /// otherwise we drop connection.
+    /// Client must send ping at least once per 10 seconds, otherwise we drop connection.
     pub hb: Instant,
 }
 
@@ -27,7 +26,7 @@ impl WsClient {
                 warn!("Session id {} timed out. Disconnecting.", act.id);
 
                 // notify chat server
-                act.server.do_send(EventMessage { room: act.room.clone(), event: Event::TimedOut { id: act.id } });
+                act.server.do_send(ClientRequest {sender_id: act.id, room: act.room.clone(), request: ClientRequestType::TimedOut { id: act.id } });
 
                 // stop actor
                 ctx.stop();
@@ -56,7 +55,7 @@ impl Actor for WsClient {
         self.hb(ctx);
         
         self.server
-            .send(NewClientMessage { room: self.room.clone(), addr: ctx.address() } )
+            .send(NewClientConnection { room: self.room.clone(), addr: ctx.address() } )
             .into_actor(self)
             .then(|res, act, ctx| {
                 match res {
@@ -70,8 +69,7 @@ impl Actor for WsClient {
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // notify chat server
-        println!("STOPPING");
-        self.server.do_send(EventMessage {room: self.room.clone(), event: Event::Disconnect { id: self.id }});
+        self.server.do_send(ClientRequest {sender_id: self.id, room: self.room.clone(), request: ClientRequestType::Disconnect { id: self.id }});
         Running::Stop
     }
 }
@@ -83,14 +81,6 @@ impl Handler<EventMessage> for WsClient {
         let EventMessage {event, room} = event_message;
 
         ctx.text(serde_json::to_string(&event).unwrap())
-        /*match event {
-            Event::Connect {id, game} => ctx.text(format!("{} joined room {}, game status: {:?}.", id, room, game)),
-            Event::Disconnect { id } => {
-                ctx.text(format!("{} left room {}.", id, room))
-            },
-            Event::TimedOut { id } => ctx.text(format!("{} has timed out!", id)),
-            Event::Message { sender_id, text} => ctx.text(format!("{}: {}", sender_id, text))
-        }*/
     }
 }
 
@@ -105,13 +95,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsClient {
                 self.hb = Instant::now();
             },
             Ok(ws::Message::Text(text)) => {
-                let client_message: ClientMessage = serde_json::from_str(&text).unwrap();
-                match client_message {
-                    ClientMessage::Message { text } => self.server.do_send(EventMessage {
-                        room: self.room.clone(),
-                        event: Event::Message { sender_id: self.id, text }
-                    })
-                }
+                let client_request_type: ClientRequestType = serde_json::from_str(&text).unwrap();
+                self.server.do_send(ClientRequest {sender_id: self.id, room: self.room.clone(), request: client_request_type});
             },
             Ok(ws::Message::Close(_)) => {
                 ctx.stop();
