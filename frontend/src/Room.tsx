@@ -4,20 +4,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { v4 } from "uuid";
+import ChatView from "./ChatView";
+import GameBoardView from "./GameBoardView";
 
-enum CardType {
+export enum CardType {
   RED = "RED",
   BLUE = "BLUE",
   BYSTANDER = "BYSTANDER",
   ASSASSIN = "ASSASSIN"
 }
 
-type Card = {word: string, cardType: CardType, flipped: boolean}
+export type Card = {word: string, cardType: CardType, flipped: boolean, coord: [number, number]}
 
-type Board = Card[][]
+export type Board = Card[][]
 
-type Game = {sessionts: number[], board: Board}
+export type Game = {sessions: number[], board: Board}
 
 enum EventType {
   Connect = "connect",
@@ -60,21 +61,6 @@ interface NewGameEvent {
 
 type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | GameStateUpdateEvent | NewGameEvent
 
-function resolveCardType(cardType: CardType): string {
-  if (cardType === CardType.BLUE) {
-    return "blue";
-  }
-
-  if (cardType === CardType.RED) {
-    return "red"
-  }
-
-  if (cardType === CardType.ASSASSIN) {
-    return "grey"
-  }
-
-  return "tan"
-}
 
 export default function Room() {
   const { room } = useParams();
@@ -85,7 +71,6 @@ export default function Room() {
   const [board, setBoard] = useState<Board | null>(null);
 
   const webSocket = useRef<WebSocket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (webSocket.current) {
@@ -105,10 +90,7 @@ export default function Room() {
     }
     
     webSocket.current.onmessage = (msg: MessageEvent<string>) => {
-      console.log("MESSAGE: ", msg.data);
       const event: Event = JSON.parse(msg.data);
-      console.log(event);
-      const {data} = event;
       switch (event.type) {
         case EventType.Connect:
           setMessages(prev => [...prev, `Got a connect message with data: ${event.data.id}`]);
@@ -134,7 +116,6 @@ export default function Room() {
     };
 
     return () => {
-      console.log("CLOSING")
       if (webSocket.current) {
         webSocket.current.close()
       }
@@ -142,22 +123,13 @@ export default function Room() {
     }
   }, []);
 
-  function scrollToBottom() {
-    if (messagesEndRef.current === null) {
-      return;
-    }
-    messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
-  }
-
-  useEffect(scrollToBottom, [messages]);
-
   function sendMessage() {
     webSocket.current?.send(JSON.stringify(
       {
         type: "message",
         data: {text: message}
       }
-    ))
+    ));
     setMessage("");
   }
 
@@ -170,34 +142,48 @@ export default function Room() {
     ))
   }
 
+  if (board === null) {
+    return (
+      <>
+        Loading...
+      </>
+    )
+  }
+
   return (
-    <>
-      <h1>Hi! Welcome to {room}</h1>
-      <input type="text"
-                  onChange={(evt) => {
-                      evt.preventDefault();
-                      setMessage(evt.target.value)
-                  }}
-                  value={message} />
-      <div className='buttons'>
-        <button onClick={() => sendMessage()} disabled={message === ""}>Send</button>
-        <button onClick={() => restartGame()}>Restart Game</button>
-      </div>
-      {board === null ? null : (
-        <div style={{display: "grid", gridTemplateColumns: "auto auto auto auto auto", border: "1px solid green"}}>
-          {board.map(row => row.map(card => (
-            <div key={v4()} style={{border: "1px solid red", backgroundColor: resolveCardType(card.cardType as CardType)}}>
-              {card.word}
-            </div>
-          )))}
+    <div style={{height: "100%", 
+                 width: "100%",
+                 maxWidth: "100%",
+                 display: "flex", 
+                 flexDirection: "column",
+                 padding: "30px",
+                 gap: "10px",
+                 alignItems: "center"}}>
+      <div style={{display: "flex", 
+                   flexDirection: "column", 
+                   gap: "10px",
+                   height: "100%"}}>
+        <div>
+          <h1>Welcome to game {room}</h1>
+          <button onClick={restartGame}>Restart</button>
         </div>
-      )}
-      <div className="messages" style={{border: "1px solid black", maxHeight: "50vh", overflow: "scroll"}}>
-        {messages.map(msg => (
-          <div key={v4()}>{msg}</div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-    </>
+        <GameBoardView style={{width: "100%", 
+                               alignSelf: "left"}} 
+                       board={board} />
+        <ChatView style={{overflow: "scroll", 
+                          flexGrow: "1", 
+                          fontSize: "0.75rem", 
+                          lineHeight: "1.25rem"}} chatMessages={messages} /> 
+        <div style={{display: "flex", gap: "10px"}}>
+          <input type="text"
+                onChange={(evt) => {
+                  evt.preventDefault();
+                  setMessage(evt.target.value);
+                }}
+                value={message} />
+          <button onClick={sendMessage}>Send</button>
+        </div>
+        </div>
+    </div> 
   )
 }

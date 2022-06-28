@@ -12,11 +12,13 @@ import Room from './Room';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
-    <Routes>
-      <Route path="/chat/:room" element={<Room />} />
-      <Route path="/join" element={<JoinGamePage />} />
-      <Route path="/items" element={<Items />} />
-      <Route path="/" element={<App />} />
-    </Routes>
+    <div style={{height: "100vh", maxHeight: "100vh"}}>
+      <Routes>
+        <Route path="/chat/:room" element={<Room />} />
+        <Route path="/join" element={<JoinGamePage />} />
+        <Route path="/items" element={<Items />} />
+        <Route path="/" element={<App />} />
+      </Routes>
+    </div>
   </BrowserRouter>
 )

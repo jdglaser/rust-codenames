@@ -43,11 +43,12 @@ pub struct Card {
     word: String,
     card_type: CardType,
     flipped: bool,
+    coord: (usize, usize)
 }
 
 impl Card {
-    fn new(word: String, card_type: CardType) -> Card {
-        Card { word, card_type, flipped: false }
+    fn new(word: String, card_type: CardType, coord: (usize, usize)) -> Card {
+        Card { word, card_type, flipped: false, coord }
     }
 }
 
@@ -59,7 +60,7 @@ impl Card {
 
 impl Default for Card {
     fn default() -> Self {
-        Card::new(String::from(""), CardType::BYSTANDER)
+        Card::new(String::from(""), CardType::BYSTANDER, (0, 0))
     }
 }
 
@@ -125,7 +126,7 @@ impl Game {
                 let random_word = words.choose(&mut rand::thread_rng())
                     .unwrap()
                     .clone();
-                board[row][col] = Card::new(random_word, CardType::BYSTANDER);
+                board[row][col] = Card::new(random_word, CardType::BYSTANDER, (row, col));
             }
         }
 
