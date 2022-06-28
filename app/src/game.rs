@@ -174,7 +174,12 @@ impl Game {
 
     pub fn flip_card(&mut self, coord: (usize, usize)) -> Card {
         let card = &mut self.board[coord.0][coord.1];
-        card.flip();
+        if card.card_type == CardType::ASSASSIN {
+            todo!("Implement game over");
+        }
+        if card.card_type != CardType::from_team(&self.turn_team) {
+            card.flip();
+        }
         self.turn_team = Team::opposite(&self.turn_team);
         card.clone()
     }

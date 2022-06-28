@@ -18,7 +18,7 @@ export type Card = {word: string, cardType: CardType, flipped: boolean, coord: [
 
 export type Board = Card[][]
 
-export type Game = {sessions: number[], board: Board}
+export type Game = {sessions: number[], board: Board, turnTeam: Team, startingTeam: Team}
 
 enum EventType {
   Connect = "connect",
@@ -27,6 +27,11 @@ enum EventType {
   Message = "message",
   GameStateUpdate = "gameStateUpdate",
   NewGame = "newGame"
+}
+
+enum Team {
+  RED = "RED",
+  BLUE = "BLUE"
 }
 
 interface ConnectEvent {
@@ -68,7 +73,7 @@ export default function Room() {
   const [message, setMessage] = useState<string>("");
   const [messages, setMessages] = useState<string[]>([]);
 
-  const [board, setBoard] = useState<Board | null>(null);
+  const [game, setGame] = useState<Game | null>(null);
 
   const webSocket = useRef<WebSocket | null>(null);
 
@@ -105,7 +110,7 @@ export default function Room() {
           setMessages(prev => [...prev, `${event.data.senderId}: ${event.data.text}`])
           break;
         case EventType.GameStateUpdate:
-          setBoard(event.data.game.board)
+          setGame(event.data.game)
           break;
         case EventType.NewGame:
           setMessages(prev => [...prev, "Game restarted!"]);
@@ -151,7 +156,7 @@ export default function Room() {
     ))
   }
 
-  if (board === null) {
+  if (game === null) {
     return (
       <>
         Loading...
@@ -176,13 +181,16 @@ export default function Room() {
                    justifyContent: "center"}}>
         <div style={{display: "flex", flexDirection: "column", gap: "5px", maxWidth: "100%"}}>
           <h2>Welcome to game {room}</h2>
-          <div>
+          <div style={{display: "flex", flexDirection: "column", justifyContent: "center", gap: "10px"}}>
+            <div style={{color: game.turnTeam === Team.BLUE ? "blue" : "red"}}>
+              {game.turnTeam}'s turn!
+            </div>
             <button onClick={restartGame}>Restart</button>
           </div>
         </div>
         <GameBoardView style={{width: "100%", 
                                alignSelf: "left"}} 
-                       board={board}
+                       board={game.board}
                        onFlip={onFlip} />
         <ChatView style={{overflow: "scroll", 
                           flexGrow: "1", 
