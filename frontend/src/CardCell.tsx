@@ -4,9 +4,6 @@ import { Card, CardType } from "./Room";
 function resolveCardType(card: Card): string {
   const {cardType, flipped} = card;
 
-  console.log("CARD: ", card)
-  console.log("FLIPPED:", flipped)
-
   if (flipped === false) {
     return "white";
   }
@@ -26,8 +23,10 @@ function resolveCardType(card: Card): string {
   return "tan"
 }
 
-export default function CardCell(props: { card: Card }) {
-  const { card } = props;
+export default function CardCell(props: { card: Card, onFlip: (coord: [number, number]) => void }) {
+  const { card, onFlip } = props;
+
+
 
   return (
     <div style={{
@@ -36,11 +35,15 @@ export default function CardCell(props: { card: Card }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "10px 0px",
+          padding: "12px 2px",
           borderRadius: "5px",
           border: "1px solid black",
-          fontSize: "0.5rem"
-        }}>
+          fontSize: "0.5rem",
+          cursor: "pointer"
+        }}
+        role="button"
+        tabIndex={0}
+        onClick={() => onFlip(card.coord)}>
       {card.word}
     </div>
   )

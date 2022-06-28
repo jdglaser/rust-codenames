@@ -142,6 +142,15 @@ export default function Room() {
     ))
   }
 
+  function onFlip(coord: [number, number]) {
+    webSocket.current?.send(JSON.stringify(
+      {
+        type: "flipCard",
+        data: {coord}
+      }
+    ))
+  }
+
   if (board === null) {
     return (
       <>
@@ -154,6 +163,7 @@ export default function Room() {
     <div style={{height: "100%", 
                  width: "100%",
                  maxWidth: "100%",
+                 maxHeight: "100%",
                  display: "flex", 
                  flexDirection: "column",
                  padding: "30px",
@@ -162,18 +172,24 @@ export default function Room() {
       <div style={{display: "flex", 
                    flexDirection: "column", 
                    gap: "10px",
-                   height: "100%"}}>
-        <div>
-          <h1>Welcome to game {room}</h1>
-          <button onClick={restartGame}>Restart</button>
+                   height: "100%",
+                   justifyContent: "center"}}>
+        <div style={{display: "flex", flexDirection: "column", gap: "5px", maxWidth: "100%"}}>
+          <h2>Welcome to game {room}</h2>
+          <div>
+            <button onClick={restartGame}>Restart</button>
+          </div>
         </div>
         <GameBoardView style={{width: "100%", 
                                alignSelf: "left"}} 
-                       board={board} />
+                       board={board}
+                       onFlip={onFlip} />
         <ChatView style={{overflow: "scroll", 
                           flexGrow: "1", 
                           fontSize: "0.75rem", 
-                          lineHeight: "1.25rem"}} chatMessages={messages} /> 
+                          lineHeight: "1.25rem",
+                          maxHeight: "200px"}} 
+                  chatMessages={messages} /> 
         <div style={{display: "flex", gap: "10px"}}>
           <input type="text"
                 onChange={(evt) => {
