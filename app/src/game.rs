@@ -50,6 +50,10 @@ impl Card {
     fn new(word: String, card_type: CardType, coord: (usize, usize)) -> Card {
         Card { word, card_type, flipped: false, coord }
     }
+
+    pub fn get_card_type(&self) -> CardType {
+        self.card_type.clone()
+    }
 }
 
 impl Card {

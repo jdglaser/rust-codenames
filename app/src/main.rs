@@ -10,6 +10,7 @@ mod event;
 mod server;
 mod client;
 mod game;
+mod database;
 
 use client::WsClient;
 use server::WsServer;

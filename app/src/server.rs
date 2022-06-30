@@ -4,7 +4,7 @@ use actix::{Addr, Actor, Context, Handler};
 use log::{info, debug};
 use rand::{prelude::ThreadRng, Rng};
 
-use crate::{client::WsClient, event::{Event, NewClientConnection, EventMessage, self, ClientRequest, ClientRequestType}};
+use crate::{client::WsClient, event::{Event, NewClientConnection, EventMessage, self, ClientRequest, ClientRequestType}, game::CardType};
 use crate::game::{Game};
 
 pub struct WsServer {
@@ -68,8 +68,11 @@ impl WsServer {
             },
             ClientRequestType::FlipCard { coord } => {
                 let flipped_card = game.flip_card(coord);
-                let new_event = Event::FlipCard { flipped_card };
+                let new_event = Event::FlipCard { flipped_card: flipped_card.clone() };
                 send_message_to_clients(new_event);
+                if flipped_card.get_card_type() == CardType::ASSASSIN {
+                    
+                }
                 send_game_state_update_to_clients(game);
             },
             ClientRequestType::NewGame {  } => {
