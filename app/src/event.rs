@@ -1,22 +1,39 @@
-use actix::{Message, Addr};
-use serde::{Serialize, Deserialize};
+use actix::{Addr, Message};
+use serde::{Deserialize, Serialize};
 
-use crate::{client::WsClient, game::{Game, Card}};
+use crate::{
+    client::WsClient,
+    database::Database,
+    game::{Card, Game},
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "camelCase")]
 pub enum Event {
-    Connect {id: usize},
-    Disconnect {id: usize},
-    TimedOut {id: usize},
+    Connect {
+        id: usize,
+    },
+    Disconnect {
+        id: usize,
+    },
+    TimedOut {
+        id: usize,
+    },
     #[serde(rename_all = "camelCase")]
-    Message {sender_id: usize, text: String},
+    Message {
+        sender_id: usize,
+        text: String,
+    },
     // Game events
     #[serde(rename_all = "camelCase")]
-    FlipCard {flipped_card: Card},
+    FlipCard {
+        flipped_card: Card,
+    },
     NewGame {},
-    GameStateUpdate {game: Game}
+    GameStateUpdate {
+        game: Game,
+    },
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]
@@ -24,7 +41,7 @@ pub enum Event {
 #[serde(rename_all = "camelCase")]
 pub struct EventMessage {
     pub room: String,
-    pub event: Event
+    pub event: Event,
 }
 
 impl EventMessage {
@@ -37,12 +54,12 @@ impl EventMessage {
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "camelCase")]
 pub enum ClientRequestType {
-    Connect {id: usize},
-    Disconnect {id: usize},
-    TimedOut {id: usize},
-    Message {text: String},
-    FlipCard {coord: (usize, usize)},
-    NewGame {}
+    Connect { id: usize },
+    Disconnect { id: usize },
+    TimedOut { id: usize },
+    Message { text: String },
+    FlipCard { coord: (usize, usize) },
+    NewGame {},
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]
@@ -51,12 +68,12 @@ pub enum ClientRequestType {
 pub struct ClientRequest {
     pub sender_id: usize,
     pub room: String,
-    pub request: ClientRequestType
+    pub request: ClientRequestType,
 }
 
 #[derive(Message)]
 #[rtype("usize")]
-pub struct NewClientConnection {
+pub struct NewClientConnection<T: 'static + Database> {
     pub room: String,
-    pub addr: Addr<WsClient>
+    pub addr: Addr<WsClient<T>>,
 }
