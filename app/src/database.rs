@@ -107,9 +107,8 @@ impl Database for MemoryDatabase {
     }
 
     fn remove_session(&mut self, session_id: usize) -> Result<()> {
-        self.sessions.remove(&session_id);
-
         let session = self.get_session(&session_id)?.clone();
+        self.sessions.remove(&session_id);
         let room = self.get_room_mut(&session.room)?;
         
         if let Some(pos) = room.sessions.iter().position(|s| *s == session_id) {

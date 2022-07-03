@@ -89,7 +89,7 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
             }
             ClientRequestType::Disconnect { id } => {
                 debug!("{} disconnected.", id);
-                self.database.lock().unwrap().remove_session(id).ok();
+                self.database.lock().unwrap().remove_session(id).unwrap();
                 if self.database.lock().unwrap().get_room(room_name).unwrap().sessions.len() == 0 {
                     info!("There are no players left in room {}. Removing.", room_name);
                     self.database.lock().unwrap().remove_room(room_name).ok();
@@ -170,7 +170,6 @@ impl<T: 'static + Database + std::marker::Unpin> Handler<ClientRequest> for WsSe
     type Result = ();
 
     fn handle(&mut self, msg: ClientRequest, ctx: &mut Self::Context) -> Self::Result {
-        info!("SENDING MSG: {:?}", msg);
         self.send_event(msg);
     }
 }
