@@ -36,7 +36,7 @@ pub enum Team {
 }
 
 impl Team {
-    fn opposite(team: &Team) -> Team {
+    pub fn opposite(team: &Team) -> Team {
         match team {
             Team::RED => Team::BLUE,
             Team::BLUE => Team::RED,
@@ -47,10 +47,10 @@ impl Team {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Card {
-    word: String,
-    card_type: CardType,
-    flipped: bool,
-    coord: (usize, usize),
+    pub word: String,
+    pub card_type: CardType,
+    pub flipped: bool,
+    pub coord: (usize, usize),
 }
 
 impl Card {
@@ -61,16 +61,6 @@ impl Card {
             flipped: false,
             coord,
         }
-    }
-
-    pub fn get_card_type(&self) -> CardType {
-        self.card_type.clone()
-    }
-}
-
-impl Card {
-    pub fn flip(&mut self) {
-        self.flipped = true;
     }
 }
 
@@ -85,10 +75,9 @@ pub type Board = [[Card; 5]; 5];
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
-    sessions: HashSet<usize>,
-    starting_team: Team,
-    turn_team: Team,
-    board: Board,
+    pub starting_team: Team,
+    pub turn_team: Team,
+    pub board: Board,
 }
 
 impl Game {
@@ -97,8 +86,7 @@ impl Game {
         return Game {
             board: Game::create_board(&starting_team),
             turn_team: starting_team.clone(),
-            starting_team,
-            sessions: HashSet::new(),
+            starting_team
         };
     }
 
@@ -107,8 +95,7 @@ impl Game {
         return Game {
             board: Game::create_board(&starting_team),
             turn_team: starting_team.clone(),
-            starting_team,
-            sessions: game.sessions.clone(),
+            starting_team
         };
     }
 
@@ -171,33 +158,27 @@ impl Game {
             .collect()
     }
 
-    pub fn add_player(&mut self, id: usize) -> &Self {
-        self.sessions.insert(id);
-        self
-    }
-
-    pub fn remove_player(&mut self, id: &usize) {
-        self.sessions.remove(id);
-    }
-
-    pub fn get_sessions(&self) -> &HashSet<usize> {
-        &self.sessions
-    }
-
     pub fn get_board(&self) -> &Board {
         &self.board
     }
 
-    pub fn flip_card(&mut self, coord: (usize, usize)) -> Card {
-        let card = &mut self.board[coord.0][coord.1];
+    pub fn flip_card(&self, coord: (usize, usize)) -> Board {
+        let mut new_board = self.board.clone();
+        let card = &mut new_board[coord.0][coord.1];
+
+        *card = Card {
+            flipped: true, 
+            ..card.clone()
+        };
+
         if card.card_type == CardType::ASSASSIN {
-            todo!("Implement game over");
+            //todo!("Implement game over");
         }
         if card.card_type != CardType::from_team(&self.turn_team) {
-            card.flip();
+            //todo!("Implement score");
         }
-        self.turn_team = Team::opposite(&self.turn_team);
-        card.clone()
+
+        new_board
     }
 }
 

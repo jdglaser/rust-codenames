@@ -2,7 +2,7 @@ use actix::{Addr, Message};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::WsClient,
+    client::{WsClient, ClientSession},
     database::Database,
     game::{Card, Game},
 };
@@ -11,29 +11,20 @@ use crate::{
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "camelCase")]
 pub enum Event {
-    Connect {
-        id: usize,
-    },
-    Disconnect {
-        id: usize,
-    },
-    TimedOut {
-        id: usize,
-    },
+    Connect { id: usize },
+    SetName { id: usize, name: String },
+    Disconnect { id: usize },
+    TimedOut { id: usize },
     #[serde(rename_all = "camelCase")]
     Message {
-        sender_id: usize,
+        sender: ClientSession,
         text: String,
     },
     // Game events
     #[serde(rename_all = "camelCase")]
-    FlipCard {
-        flipped_card: Card,
-    },
+    FlipCard { flipped_card: Card },
     NewGame {},
-    GameStateUpdate {
-        game: Game,
-    },
+    GameStateUpdate { game: Game },
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]
@@ -55,6 +46,7 @@ impl EventMessage {
 #[serde(rename_all = "camelCase")]
 pub enum ClientRequestType {
     Connect { id: usize },
+    SetName { name: String },
     Disconnect { id: usize },
     TimedOut { id: usize },
     Message { text: String },
@@ -67,13 +59,13 @@ pub enum ClientRequestType {
 #[serde(rename_all = "camelCase")]
 pub struct ClientRequest {
     pub sender_id: usize,
-    pub room: String,
+    pub room_name: String,
     pub request: ClientRequestType,
 }
 
 #[derive(Message)]
 #[rtype("usize")]
-pub struct NewClientConnection<T: 'static + Database> {
+pub struct NewClientConnection<T: 'static + Database + std::marker::Unpin> {
     pub room: String,
     pub addr: Addr<WsClient<T>>,
 }

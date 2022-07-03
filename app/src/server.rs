@@ -1,60 +1,75 @@
 use std::{
     collections::{HashMap},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use actix::{Actor, Addr, Context, Handler};
 use log::{debug, info};
-use rand::{Rng};
 
-use crate::game::Game;
+use crate::{game::{Game, Team}, client::ClientSession};
 use crate::{
     client::WsClient,
     database::Database,
-    event::{ClientRequest, ClientRequestType, Event, EventMessage, NewClientConnection},
-    game::CardType,
+    event::{ClientRequest, ClientRequestType, Event, EventMessage, NewClientConnection}
 };
 
-pub struct WsServer<T: 'static + Database> {
-    database: Arc<T>,
-    clients: HashMap<usize, Addr<WsClient<T>>>,
-    rooms: HashMap<String, Game>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Room {
+    pub name: String,
+    pub game_id: usize,
+    pub sessions: Vec<usize>,
 }
 
-impl<T: 'static + Database> WsServer<T> {
-    pub fn new(database: Arc<T>) -> Self {
+impl Room {
+    pub fn new(name: String, game_id: usize) -> Room {
+        Room {
+            name,
+            game_id,
+            sessions: Vec::new(),
+        }
+    }
+}
+
+pub struct WsServer<T: 'static + Database + std::marker::Unpin> {
+    database: Arc<Mutex<T>>,
+    clients: HashMap<usize, Addr<WsClient<T>>>,
+}
+
+impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
+    pub fn new(database: Arc<Mutex<T>>) -> Self {
         WsServer {
             database,
-            clients: HashMap::new(),
-            rooms: HashMap::new(),
+            clients: HashMap::new()
         }
     }
 
     fn send_event(&mut self, client_request: ClientRequest) {
         let ClientRequest {
             ref sender_id,
-            ref room,
+            ref room_name,
             request,
         } = client_request;
-        let game = self.rooms.get_mut(room).expect("Unable to find game");
-        let sessions = game.get_sessions().clone();
+
+        let room = self.database.lock().unwrap().get_room(room_name).unwrap();
+        let game = self.database.lock().unwrap().get_game(room.game_id).unwrap();
+        let sessions = self.database.lock().unwrap().get_room(room_name).unwrap().sessions;
 
         let send_message_to_clients = |event: Event| {
             for id in &sessions {
                 debug!("Sending event to id {} with value {:?}", id, &event);
                 self.clients.get(&id).unwrap().do_send(EventMessage {
-                    room: room.clone(),
+                    room: room_name.clone(),
                     event: event.clone(),
                 });
             }
         };
 
         let send_game_state_update_to_clients = |game: &Game| {
-            debug!("Sending game state update event to room {}.", &room);
+            debug!("Sending game state update event to room {}.", &room_name);
             for id in &sessions {
                 debug!("Sending game state update event to id {}.", id);
                 self.clients.get(id).unwrap().do_send(EventMessage {
-                    room: room.clone(),
+                    room: room_name.clone(),
                     event: Event::GameStateUpdate { game: game.clone() },
                 });
             }
@@ -62,91 +77,100 @@ impl<T: 'static + Database> WsServer<T> {
 
         match request {
             ClientRequestType::Connect { id } => {
+                debug!("{} connected", id);
                 send_message_to_clients(Event::Connect { id });
-                send_game_state_update_to_clients(game);
+                send_game_state_update_to_clients(&game);
+            },
+            ClientRequestType::SetName { name } => {
+                let existing_session = self.database.lock().unwrap().get_session(sender_id).unwrap();
+                let new_session = ClientSession { username: name.clone(), ..existing_session };
+                self.database.lock().unwrap().update_session(*sender_id, &new_session).unwrap();
+                send_message_to_clients(Event::SetName { id: *sender_id, name });
             }
             ClientRequestType::Disconnect { id } => {
-                game.remove_player(&id);
-                if game.get_sessions().len() == 0 {
-                    info!("There are no players left in room {}. Removing.", &room);
-                    self.rooms.remove(room);
+                debug!("{} disconnected.", id);
+                self.database.lock().unwrap().remove_session(id).ok();
+                if self.database.lock().unwrap().get_room(room_name).unwrap().sessions.len() == 0 {
+                    info!("There are no players left in room {}. Removing.", room_name);
+                    self.database.lock().unwrap().remove_room(room_name).ok();
                     return;
                 }
                 send_message_to_clients(Event::Disconnect { id });
-                send_game_state_update_to_clients(game);
+                send_game_state_update_to_clients(&game);
             }
             ClientRequestType::TimedOut { id } => {
-                game.remove_player(&id);
-                if game.get_sessions().len() == 0 {
-                    info!("There are no players left in room {}. Removing.", &room);
-                    self.rooms.remove(room);
+                self.database.lock().unwrap().remove_session(id).unwrap();
+                if self.database.lock().unwrap().get_room(room_name).unwrap().sessions.len() == 0 {
+                    info!("There are no players left in room {}. Removing.", room_name);
+                    self.database.lock().unwrap().remove_room(room_name).unwrap();
                     return;
                 }
                 send_message_to_clients(Event::Disconnect { id });
-                send_game_state_update_to_clients(game);
+                send_game_state_update_to_clients(&game);
             }
             ClientRequestType::Message { text } => {
+                let sender_client_session = self.database.lock().unwrap().get_session(sender_id).unwrap();
                 send_message_to_clients(Event::Message {
-                    sender_id: *sender_id,
+                    sender: sender_client_session,
                     text,
                 });
             }
             ClientRequestType::FlipCard { coord } => {
-                let flipped_card = game.flip_card(coord);
+                let new_board = game.flip_card(coord);
                 let new_event = Event::FlipCard {
-                    flipped_card: flipped_card.clone(),
+                    flipped_card: new_board[coord.0][coord.1].clone(),
                 };
+                let new_game = Game { 
+                    board: new_board,
+                    turn_team: Team::opposite(&game.turn_team),
+                    ..game.clone() 
+                };
+                self.database.lock().unwrap().update_game(room.game_id, &new_game).unwrap();
                 send_message_to_clients(new_event);
-                if flipped_card.get_card_type() == CardType::ASSASSIN {}
-                send_game_state_update_to_clients(game);
+                send_game_state_update_to_clients(&new_game);
             }
             ClientRequestType::NewGame {} => {
-                let game = game.new_from_current_game();
-                self.rooms.insert(room.clone(), game.clone());
+                let new_game = game.new_from_current_game();
+                self.database.lock().unwrap().update_game(room.game_id, &new_game).unwrap();
                 send_message_to_clients(Event::NewGame {});
-                send_game_state_update_to_clients(&game);
+                send_game_state_update_to_clients(&new_game);
             }
         }
     }
 }
 
 /// Make actor from `ChatServer`
-impl<T: 'static + Database> Actor for WsServer<T> {
+impl<T: 'static + Database + std::marker::Unpin> Actor for WsServer<T> {
     type Context = Context<Self>;
 }
 
-impl<T: 'static + Database> Handler<NewClientConnection<T>> for WsServer<T> {
+impl<T: 'static + Database + std::marker::Unpin> Handler<NewClientConnection<T>> for WsServer<T> {
     type Result = usize;
 
     fn handle(&mut self, msg: NewClientConnection<T>, ctx: &mut Self::Context) -> Self::Result {
-        // Generate thread safe random session id
-        let id = rand::thread_rng().gen::<usize>();
+        if self.database.lock().unwrap().get_room(&msg.room).is_err() {
+            self.database.lock().unwrap().create_room(&msg.room).unwrap();
+        }
 
-        // Insert the new client id to the clients
-        self.clients.insert(id, msg.addr.clone());
+        let session_id = self.database.lock().unwrap().create_session(&msg.room).unwrap();
 
-        // Insert room if it does not exist and add session actor's address
-        self.rooms
-            .entry(msg.room.clone())
-            .or_insert_with(|| Game::new())
-            .add_player(id);
-
-        info!("Added session id {} to room {}", id, msg.room);
+        self.clients.insert(session_id, msg.addr);
 
         self.send_event(ClientRequest {
-            sender_id: id,
-            room: msg.room.clone(),
-            request: ClientRequestType::Connect { id },
+            sender_id: session_id,
+            room_name: msg.room.clone(),
+            request: ClientRequestType::Connect { id: session_id },
         });
 
-        id
+        session_id
     }
 }
 
-impl<T: 'static + Database> Handler<ClientRequest> for WsServer<T> {
+impl<T: 'static + Database + std::marker::Unpin> Handler<ClientRequest> for WsServer<T> {
     type Result = ();
 
     fn handle(&mut self, msg: ClientRequest, ctx: &mut Self::Context) -> Self::Result {
+        info!("SENDING MSG: {:?}", msg);
         self.send_event(msg);
     }
 }

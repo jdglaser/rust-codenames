@@ -18,7 +18,9 @@ export type Card = {word: string, cardType: CardType, flipped: boolean, coord: [
 
 export type Board = Card[][]
 
-export type Game = {sessions: number[], board: Board, turnTeam: Team, startingTeam: Team}
+export type Game = {board: Board, turnTeam: Team, startingTeam: Team}
+
+export type ClientSession = {id: number, username: string, room: string, is_spymaster: boolean}
 
 enum EventType {
   Connect = "connect",
@@ -26,7 +28,8 @@ enum EventType {
   TimedOut = "timedOut",
   Message = "message",
   GameStateUpdate = "gameStateUpdate",
-  NewGame = "newGame"
+  NewGame = "newGame",
+  SetName = "setName"
 }
 
 enum Team {
@@ -51,7 +54,7 @@ interface TimedOutEvent {
 
 interface ChatMessageEvent {
   type: EventType.Message
-  data: {senderId: number, text: string}
+  data: {sender: ClientSession, text: string}
 }
 
 interface GameStateUpdateEvent {
@@ -64,7 +67,12 @@ interface NewGameEvent {
   data: {}
 }
 
-type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | GameStateUpdateEvent | NewGameEvent
+interface SetNameEvent {
+  type: EventType.SetName,
+  data: {id: number, name: string}
+}
+
+type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | GameStateUpdateEvent | NewGameEvent | SetNameEvent
 
 
 export default function Room() {
@@ -74,6 +82,8 @@ export default function Room() {
   const [messages, setMessages] = useState<string[]>([]);
 
   const [game, setGame] = useState<Game | null>(null);
+  const [usernameSet, setUsernameSet] = useState<Boolean>(false);
+  const [username, setUsername] = useState<string>("");
 
   const webSocket = useRef<WebSocket | null>(null);
 
@@ -107,13 +117,16 @@ export default function Room() {
           setMessages(prev => [...prev, `User id ${event.data.id} timed out and has been disconnected from the game!`])
           break;
         case EventType.Message:
-          setMessages(prev => [...prev, `${event.data.senderId}: ${event.data.text}`])
+          setMessages(prev => [...prev, `${event.data.sender.username}: ${event.data.text}`])
           break;
         case EventType.GameStateUpdate:
           setGame(event.data.game)
           break;
         case EventType.NewGame:
           setMessages(prev => [...prev, "Game restarted!"]);
+          break;
+        case EventType.SetName:
+          setMessages(prev => [...prev, `${event.data.name} joined the game!`]);
           break;
         default:
           console.error("Unrecognized event: ", event);
@@ -156,11 +169,33 @@ export default function Room() {
     ))
   }
 
+  function onSetUsername() {
+    webSocket.current?.send(JSON.stringify(
+      {
+        type: "setName",
+        data: {name: username}
+      }
+    ));
+    setUsernameSet(true);
+  }
+
   if (game === null) {
     return (
       <>
         Loading...
       </>
+    )
+  }
+
+  if (!usernameSet) {
+    return (
+      <div>
+        Set username
+        <input type="text"
+               value={username}
+               onChange={(evt) => {evt.preventDefault(); setUsername(evt.target.value)}} />
+        <button disabled={username === ""} onClick={onSetUsername}>Submit</button>
+      </div>
     )
   }
 

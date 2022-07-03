@@ -7,13 +7,14 @@ use actix_web_actors::ws;
 use database::{Database, MemoryDatabase};
 use log::info;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::{Arc, Mutex}};
 
 mod client;
 mod database;
 mod event;
 mod game;
 mod server;
+mod repo;
 
 use client::WsClient;
 use server::WsServer;
@@ -26,20 +27,25 @@ struct Item {
 }
 
 #[derive(Clone)]
-struct AppData<T: 'static + Database> {
+struct AppData<T: 'static + Database + std::marker::Unpin> {
     server: Addr<WsServer<T>>,
-    database: Arc<T>,
+    database: Arc<Mutex<T>>,
 }
 
-async fn ws_index<T: Database>(
+#[derive(Serialize, Deserialize, Debug)]
+struct UserInfo {
+    username: String
+}
+
+async fn ws_index<T: Database + 'static + std::marker::Unpin>(
     path: web::Path<String>,
     req: HttpRequest,
     stream: web::Payload,
-    data: web::Data<AppData<T>>,
+    data: web::Data<AppData<T>>
 ) -> Result<HttpResponse, Error> {
     let room = path.into_inner();
     let resp = ws::start(
-        WsClient::new(data.get_ref().server.clone(), room.to_string()),
+        WsClient::new(data.get_ref().server.clone(), &room.to_string(), data.database.clone()),
         &req,
         stream,
     );
@@ -63,7 +69,7 @@ async fn index(req: HttpRequest) -> Result<fs::NamedFile> {
     Ok(fs::NamedFile::open(path)?)
 }
 
-async fn create_server<T: 'static + Database + Sync + Send>(
+async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin>(
     app_data: web::Data<AppData<T>>,
 ) -> Result<Server, Error> {
     let server = HttpServer::new(move || {
@@ -84,9 +90,7 @@ async fn create_server<T: 'static + Database + Sync + Send>(
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
-    info!("Starting!");
-
-    let memory_database = Arc::new(MemoryDatabase::new());
+    let memory_database = Arc::new(Mutex::new(MemoryDatabase::new()));
     let chat_server = WsServer::new(memory_database.clone()).start();
 
     let app_data = web::Data::new(AppData {
