@@ -20,130 +20,85 @@ pub trait Database {
 }
 
 #[derive(Clone)]
-pub struct MemoryDatabaseRepo {
-    database: Arc<Mutex<MemoryDatabase>>
-}
-
-impl MemoryDatabaseRepo {
-    pub fn new() -> MemoryDatabaseRepo {
-        MemoryDatabaseRepo { database: Arc::new(Mutex::new(MemoryDatabase::new())) }
-    }
-
-    fn get_lock(&self) -> MutexGuard<MemoryDatabase> {
-        self.database.lock().unwrap()
-    }
-}
-
-impl Database for MemoryDatabaseRepo {
-    fn create_room(&mut self, name: &String) -> Result<String> {
-        self.get_lock().create_room(name)
-    }
-
-    fn remove_room(&mut self, name: &String) -> Result<()> {
-        self.get_lock().remove_room(name)
-    }
-
-    fn get_room(&self, name: &String) -> Result<Room> {
-        self.get_lock().get_room(name)
-    }
-
-    fn get_rooms(&self) -> Result<Vec<Room>> {
-        self.get_lock().get_rooms()
-    }
-
-    fn get_sessions(&self) -> Result<Vec<ClientSession>> {
-        self.get_lock().get_sessions()
-    }
-
-    fn get_session(&self, id: &usize) -> Result<ClientSession> {
-        self.get_lock().get_session(id)
-    }
-
-    fn update_session(&mut self, id: usize, session_update: &ClientSession) -> Result<()> {
-        self.get_lock().update_session(id, session_update)
-    }
-
-    fn create_session(&mut self, room: &String) -> Result<usize> {
-        self.get_lock().create_session(room)
-    }
-
-    fn remove_session(&mut self, session_id: usize) -> Result<()> {
-        self.get_lock().remove_session(session_id)
-    }
-
-    fn update_game(&mut self, game_id: usize, game_update: &Game) -> Result<()> {
-        self.get_lock().update_game(game_id, game_update)
-    }
-
-    fn get_game(&self, game_id: usize) -> Result<Game> {
-        self.get_lock().get_game(game_id)
-    }
-}
-
-#[derive(Clone)]
-pub struct MemoryDatabase {
+pub struct MemoryDatabaseTables {
     rooms: HashMap<String, Room>,
     games: HashMap<usize, Game>,
     sessions: HashMap<usize, ClientSession>,
 }
 
-impl MemoryDatabase {
-    pub fn new() -> MemoryDatabase {
-        MemoryDatabase {
+impl MemoryDatabaseTables {
+    pub fn new() -> MemoryDatabaseTables {
+        MemoryDatabaseTables {
             rooms: HashMap::new(),
             games: HashMap::new(),
             sessions: HashMap::new(),
         }
     }
+}
 
-    fn get_room_mut(&mut self, name: &String) -> Result<&mut Room> {
-        self.rooms
-            .get_mut(name)
-            .context(format!("Could not find room with name '{}'.", name))
+#[derive(Clone)]
+pub struct MemoryDatabase {
+    database: Arc<Mutex<MemoryDatabaseTables>>
+}
+
+impl MemoryDatabase {
+    pub fn new() -> MemoryDatabase {
+        MemoryDatabase {
+            database: Arc::new(Mutex::new(MemoryDatabaseTables::new()))
+        }
+    }
+
+    fn get_lock(&self) -> MutexGuard<MemoryDatabaseTables> {
+        self.database.lock().unwrap()
+    }
+
+    fn get_lock_mut(&mut self) -> MutexGuard<MemoryDatabaseTables> {
+        self.database.lock().unwrap()
     }
 }
 
 impl Database for MemoryDatabase {
     fn create_room(&mut self, name: &String) -> Result<String> {
-        if self.rooms.contains_key(name) {
+        if self.get_lock().rooms.contains_key(name) {
             bail!("Room {} already exists!", name)
         }
 
         loop {
             let game_id = rand::thread_rng().gen();
-            if self.games.contains_key(&game_id) { continue; }
+            if self.get_lock().games.contains_key(&game_id) { continue; }
 
-            self.games.insert(game_id, Game::new());
+            self.get_lock().games.insert(game_id, Game::new());
             let new_room = Room::new(name.clone(), game_id);
-            self.rooms.insert(name.clone(), new_room.clone());
+            self.get_lock().rooms.insert(name.clone(), new_room.clone());
             return Ok(name.clone())
         }
     }
 
     fn remove_room(&mut self, name: &String) -> Result<()> {
-        self.rooms
+        self.get_lock().rooms
             .remove(name)
             .context(format!("Failed to remove room with name '{}' because it did not exist.", name))
             .and(Ok(()))
     }
 
     fn get_room(&self, name: &String) -> Result<Room> {
-        self.rooms
+        self.get_lock().rooms
             .get(name)
             .context(format!("Could not find room with name '{}'.", name))
             .cloned()
     }
 
     fn get_rooms(&self) -> Result<Vec<Room>> {
-        Ok(self.rooms.values().cloned().collect())
+        Ok(self.get_lock().rooms.values().cloned().collect())
     }
 
     fn get_sessions(&self) -> Result<Vec<ClientSession>> {
-        Ok(self.sessions.values().cloned().collect())
+        Ok(self.get_lock().sessions.values().cloned().collect())
     }
 
     fn get_session(&self, id: &usize) -> Result<ClientSession> {
-        self.sessions
+        self.get_lock()
+            .sessions
             .get(&id)
             .context(format!("Session with id {} does not exist.", id))
             .cloned()
@@ -152,12 +107,12 @@ impl Database for MemoryDatabase {
     fn create_session(&mut self, room: &String) -> Result<usize> {
         loop {
             let id = rand::thread_rng().gen();
-            if self.sessions.contains_key(&id) { continue; };
+            if self.get_lock().sessions.contains_key(&id) { continue; };
 
             let session = ClientSession::new(id, &room);
-            self.sessions.insert(id, session);
+            self.get_lock().sessions.insert(id, session);
 
-            return match self.rooms.get_mut(room) {
+            return match self.get_lock().rooms.get_mut(room) {
                 Some(val) => {
                     val.sessions.push(id);
                     Ok(id)
@@ -169,37 +124,41 @@ impl Database for MemoryDatabase {
 
     fn remove_session(&mut self, session_id: usize) -> Result<()> {
         let session = self.get_session(&session_id)?.clone();
-        self.sessions.remove(&session_id);
-        let room = self.get_room_mut(&session.room)?;
-        
-        if let Some(pos) = room.sessions.iter().position(|s| *s == session_id) {
-            room.sessions.swap_remove(pos);
-        }
+        self.get_lock().sessions.remove(&session_id);
 
-        Ok(())
+        self.get_lock_mut()
+            .rooms
+            .get_mut(&session.room)
+            .context(format!("Could not find room with name '{}'.", &session.room))
+            .and_then(|room| {
+                if let Some(pos) = room.sessions.iter().position(|s| *s == session_id) {
+                    room.sessions.swap_remove(pos);
+                }
+                Ok(())
+            })
     }
 
     fn update_game(&mut self, game_id: usize, game_update: &Game) -> Result<()> {
-        self.games.get(&game_id)
+        self.get_lock().games.get(&game_id)
             .context(format!("Cannot find game with id '{}'.", game_id))?;
         
-        self.games.insert(game_id, game_update.clone());
+        self.get_lock().games.insert(game_id, game_update.clone());
         Ok(())
     }
 
     fn get_game(&self, game_id: usize) -> Result<Game> {
-        self.games
+        self.get_lock().games
             .get(&game_id)
             .context(format!("Could not find game with id '{}'.", game_id))
             .cloned()
     }
 
     fn update_session(&mut self, id: usize, session_update: &ClientSession) -> Result<()> {
-        self.sessions
+        self.get_lock().sessions
             .get(&id)
             .context(format!("Could not find session with id '{}'.", id))?;
         
-        self.sessions.insert(id, session_update.clone());
+        self.get_lock().sessions.insert(id, session_update.clone());
         Ok(())
     }
 }

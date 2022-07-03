@@ -4,7 +4,7 @@ use actix_web::{
     dev::Server, get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use actix_web_actors::ws;
-use database::{Database, MemoryDatabase, MemoryDatabaseRepo};
+use database::{Database, MemoryDatabase};
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::{Arc, Mutex}};
@@ -90,7 +90,7 @@ async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin 
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
-    let memory_database = MemoryDatabaseRepo::new();
+    let memory_database = MemoryDatabase::new();
     let chat_server = WsServer::new(memory_database.clone()).start();
 
     let app_data = web::Data::new(AppData {
