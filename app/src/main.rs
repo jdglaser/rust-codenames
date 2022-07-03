@@ -4,7 +4,7 @@ use actix_web::{
     dev::Server, get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use actix_web_actors::ws;
-use database::{Database, MemoryDatabase};
+use database::{Database, MemoryDatabase, MemoryDatabaseRepo};
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::{Arc, Mutex}};
@@ -29,7 +29,7 @@ struct Item {
 #[derive(Clone)]
 struct AppData<T: 'static + Database + std::marker::Unpin> {
     server: Addr<WsServer<T>>,
-    database: Arc<Mutex<T>>,
+    database: T,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -37,7 +37,7 @@ struct UserInfo {
     username: String
 }
 
-async fn ws_index<T: Database + 'static + std::marker::Unpin>(
+async fn ws_index<T: Database + 'static + std::marker::Unpin + Clone>(
     path: web::Path<String>,
     req: HttpRequest,
     stream: web::Payload,
@@ -69,7 +69,7 @@ async fn index(req: HttpRequest) -> Result<fs::NamedFile> {
     Ok(fs::NamedFile::open(path)?)
 }
 
-async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin>(
+async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin + Clone>(
     app_data: web::Data<AppData<T>>,
 ) -> Result<Server, Error> {
     let server = HttpServer::new(move || {
@@ -90,7 +90,7 @@ async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin>
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
-    let memory_database = Arc::new(Mutex::new(MemoryDatabase::new()));
+    let memory_database = MemoryDatabaseRepo::new();
     let chat_server = WsServer::new(memory_database.clone()).start();
 
     let app_data = web::Data::new(AppData {

@@ -31,12 +31,12 @@ impl Room {
 }
 
 pub struct WsServer<T: 'static + Database + std::marker::Unpin> {
-    database: Arc<Mutex<T>>,
+    database: T,
     clients: HashMap<usize, Addr<WsClient<T>>>,
 }
 
 impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
-    pub fn new(database: Arc<Mutex<T>>) -> Self {
+    pub fn new(database: T) -> Self {
         WsServer {
             database,
             clients: HashMap::new()
@@ -50,9 +50,9 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
             request,
         } = client_request;
 
-        let room = self.database.lock().unwrap().get_room(room_name).unwrap();
-        let game = self.database.lock().unwrap().get_game(room.game_id).unwrap();
-        let sessions = self.database.lock().unwrap().get_room(room_name).unwrap().sessions;
+        let room = self.database.get_room(room_name).unwrap();
+        let game = self.database.get_game(room.game_id).unwrap();
+        let sessions = self.database.get_room(room_name).unwrap().sessions;
 
         let send_message_to_clients = |event: Event| {
             for id in &sessions {
@@ -82,34 +82,34 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 send_game_state_update_to_clients(&game);
             },
             ClientRequestType::SetName { name } => {
-                let existing_session = self.database.lock().unwrap().get_session(sender_id).unwrap();
+                let existing_session = self.database.get_session(sender_id).unwrap();
                 let new_session = ClientSession { username: name.clone(), ..existing_session };
-                self.database.lock().unwrap().update_session(*sender_id, &new_session).unwrap();
+                self.database.update_session(*sender_id, &new_session).unwrap();
                 send_message_to_clients(Event::SetName { id: *sender_id, name });
             }
             ClientRequestType::Disconnect { id } => {
                 debug!("{} disconnected.", id);
-                self.database.lock().unwrap().remove_session(id).unwrap();
-                if self.database.lock().unwrap().get_room(room_name).unwrap().sessions.len() == 0 {
+                self.database.remove_session(id).unwrap();
+                if self.database.get_room(room_name).unwrap().sessions.len() == 0 {
                     info!("There are no players left in room {}. Removing.", room_name);
-                    self.database.lock().unwrap().remove_room(room_name).ok();
+                    self.database.remove_room(room_name).ok();
                     return;
                 }
                 send_message_to_clients(Event::Disconnect { id });
                 send_game_state_update_to_clients(&game);
             }
             ClientRequestType::TimedOut { id } => {
-                self.database.lock().unwrap().remove_session(id).unwrap();
-                if self.database.lock().unwrap().get_room(room_name).unwrap().sessions.len() == 0 {
+                self.database.remove_session(id).unwrap();
+                if self.database.get_room(room_name).unwrap().sessions.len() == 0 {
                     info!("There are no players left in room {}. Removing.", room_name);
-                    self.database.lock().unwrap().remove_room(room_name).unwrap();
+                    self.database.remove_room(room_name).unwrap();
                     return;
                 }
                 send_message_to_clients(Event::Disconnect { id });
                 send_game_state_update_to_clients(&game);
             }
             ClientRequestType::Message { text } => {
-                let sender_client_session = self.database.lock().unwrap().get_session(sender_id).unwrap();
+                let sender_client_session = self.database.get_session(sender_id).unwrap();
                 send_message_to_clients(Event::Message {
                     sender: sender_client_session,
                     text,
@@ -125,13 +125,13 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                     turn_team: Team::opposite(&game.turn_team),
                     ..game.clone() 
                 };
-                self.database.lock().unwrap().update_game(room.game_id, &new_game).unwrap();
+                self.database.update_game(room.game_id, &new_game).unwrap();
                 send_message_to_clients(new_event);
                 send_game_state_update_to_clients(&new_game);
             }
             ClientRequestType::NewGame {} => {
                 let new_game = game.new_from_current_game();
-                self.database.lock().unwrap().update_game(room.game_id, &new_game).unwrap();
+                self.database.update_game(room.game_id, &new_game).unwrap();
                 send_message_to_clients(Event::NewGame {});
                 send_game_state_update_to_clients(&new_game);
             }
@@ -148,11 +148,11 @@ impl<T: 'static + Database + std::marker::Unpin> Handler<NewClientConnection<T>>
     type Result = usize;
 
     fn handle(&mut self, msg: NewClientConnection<T>, ctx: &mut Self::Context) -> Self::Result {
-        if self.database.lock().unwrap().get_room(&msg.room).is_err() {
-            self.database.lock().unwrap().create_room(&msg.room).unwrap();
+        if self.database.get_room(&msg.room).is_err() {
+            self.database.create_room(&msg.room).unwrap();
         }
 
-        let session_id = self.database.lock().unwrap().create_session(&msg.room).unwrap();
+        let session_id = self.database.create_session(&msg.room).unwrap();
 
         self.clients.insert(session_id, msg.addr);
 

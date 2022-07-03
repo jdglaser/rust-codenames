@@ -37,13 +37,13 @@ impl ClientSession {
 pub struct WsClient<T: 'static + Database + std::marker::Unpin> {
     session_id: usize,
     room_name: String,
-    database: Arc<Mutex<T>>,
+    database: T,
     server: Addr<WsServer<T>>,
     pub hb: Instant,
 }
 
 impl<T: 'static + Database + std::marker::Unpin> WsClient<T> {
-    pub fn new(server: Addr<WsServer<T>>, room: &String, database: Arc<Mutex<T>>) -> Self {
+    pub fn new(server: Addr<WsServer<T>>, room: &String, database: T) -> Self {
         WsClient {
             session_id: 0,
             server,

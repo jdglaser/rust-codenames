@@ -1,4 +1,4 @@
-use std::{collections::{hash_map, HashMap}, sync::{Mutex, Arc}};
+use std::{collections::{hash_map, HashMap}, sync::{Mutex, Arc, MutexGuard}};
 
 use rand::{Rng};
 use anyhow::{Result, bail, Context, anyhow};
@@ -17,6 +17,67 @@ pub trait Database {
     fn remove_session(&mut self, session_id: usize) -> Result<()>;
     fn update_game(&mut self, game_id: usize, game_update: &Game) -> Result<()>;
     fn get_game(&self, game_id: usize) -> Result<Game>;
+}
+
+#[derive(Clone)]
+pub struct MemoryDatabaseRepo {
+    database: Arc<Mutex<MemoryDatabase>>
+}
+
+impl MemoryDatabaseRepo {
+    pub fn new() -> MemoryDatabaseRepo {
+        MemoryDatabaseRepo { database: Arc::new(Mutex::new(MemoryDatabase::new())) }
+    }
+
+    fn get_lock(&self) -> MutexGuard<MemoryDatabase> {
+        self.database.lock().unwrap()
+    }
+}
+
+impl Database for MemoryDatabaseRepo {
+    fn create_room(&mut self, name: &String) -> Result<String> {
+        self.get_lock().create_room(name)
+    }
+
+    fn remove_room(&mut self, name: &String) -> Result<()> {
+        self.get_lock().remove_room(name)
+    }
+
+    fn get_room(&self, name: &String) -> Result<Room> {
+        self.get_lock().get_room(name)
+    }
+
+    fn get_rooms(&self) -> Result<Vec<Room>> {
+        self.get_lock().get_rooms()
+    }
+
+    fn get_sessions(&self) -> Result<Vec<ClientSession>> {
+        self.get_lock().get_sessions()
+    }
+
+    fn get_session(&self, id: &usize) -> Result<ClientSession> {
+        self.get_lock().get_session(id)
+    }
+
+    fn update_session(&mut self, id: usize, session_update: &ClientSession) -> Result<()> {
+        self.get_lock().update_session(id, session_update)
+    }
+
+    fn create_session(&mut self, room: &String) -> Result<usize> {
+        self.get_lock().create_session(room)
+    }
+
+    fn remove_session(&mut self, session_id: usize) -> Result<()> {
+        self.get_lock().remove_session(session_id)
+    }
+
+    fn update_game(&mut self, game_id: usize, game_update: &Game) -> Result<()> {
+        self.get_lock().update_game(game_id, game_update)
+    }
+
+    fn get_game(&self, game_id: usize) -> Result<Game> {
+        self.get_lock().get_game(game_id)
+    }
 }
 
 #[derive(Clone)]
