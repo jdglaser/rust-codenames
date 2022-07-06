@@ -39,7 +39,7 @@ export default function CardCell(props: { card: Card, onFlip: (coord: [number, n
           borderRadius: "5px",
           border: "1px solid black",
           fontSize: "0.5rem",
-          cursor: "pointer"
+          cursor: card.flipped ? "" : "pointer"
         }}
         role="button"
         tabIndex={0}

@@ -29,7 +29,7 @@ impl CardType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Team {
     RED,
     BLUE,
@@ -50,7 +50,7 @@ pub struct Card {
     pub word: String,
     pub card_type: CardType,
     pub flipped: bool,
-    pub coord: (usize, usize),
+    pub coord: (usize, usize)
 }
 
 impl Card {
@@ -59,7 +59,7 @@ impl Card {
             word,
             card_type,
             flipped: false,
-            coord,
+            coord
         }
     }
 }
@@ -78,6 +78,8 @@ pub struct Game {
     pub starting_team: Team,
     pub turn_team: Team,
     pub board: Board,
+    pub remaining_cards: (u8, u8),
+    pub game_over: bool
 }
 
 impl Game {
@@ -86,7 +88,9 @@ impl Game {
         return Game {
             board: Game::create_board(&starting_team),
             turn_team: starting_team.clone(),
-            starting_team
+            remaining_cards: Game::initalize_remaining_cards(&starting_team),
+            starting_team,
+            game_over: false
         };
     }
 
@@ -95,12 +99,21 @@ impl Game {
         return Game {
             board: Game::create_board(&starting_team),
             turn_team: starting_team.clone(),
-            starting_team
+            remaining_cards: Game::initalize_remaining_cards(&starting_team),
+            starting_team,
+            game_over: false
         };
     }
 
     pub fn new_from_current_game(&self) -> Self {
         Game::new_from_game(self)
+    }
+
+    fn initalize_remaining_cards(starting_team: &Team) -> (u8, u8) {
+        match starting_team {
+            Team::BLUE => (9, 8),
+            Team::RED => (8, 9)
+        }
     }
 
     fn fill_card(board: &mut Board, card_type: &CardType) {
@@ -158,27 +171,36 @@ impl Game {
             .collect()
     }
 
-    pub fn get_board(&self) -> &Board {
-        &self.board
-    }
+    pub fn flip_card(&self, coord: (usize, usize)) -> Game {
+        let mut new_game = self.clone();
+        let card = &mut new_game.board[coord.0][coord.1];
 
-    pub fn flip_card(&self, coord: (usize, usize)) -> Board {
-        let mut new_board = self.board.clone();
-        let card = &mut new_board[coord.0][coord.1];
+        match card.card_type {
+            CardType::BLUE => {
+                new_game.remaining_cards.0 -= 1;
+                if let Team::RED = new_game.turn_team {
+                    new_game.turn_team = Team::opposite(&new_game.turn_team);
+                }
+            },
+            CardType::RED => {
+                new_game.remaining_cards.1 -= 1;
+                if let Team::BLUE = new_game.turn_team {
+                    new_game.turn_team = Team::opposite(&new_game.turn_team);
+                }
+            },
+            _ => new_game.turn_team = Team::opposite(&new_game.turn_team)
+        };
+
+        if new_game.remaining_cards.0 == 0 || new_game.remaining_cards.1 == 0 {
+            new_game.game_over = true;
+        }
 
         *card = Card {
             flipped: true, 
             ..card.clone()
         };
 
-        if card.card_type == CardType::ASSASSIN {
-            //todo!("Implement game over");
-        }
-        if card.card_type != CardType::from_team(&self.turn_team) {
-            //todo!("Implement score");
-        }
-
-        new_board
+        new_game
     }
 }
 

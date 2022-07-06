@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     client::{WsClient, ClientSession},
     database::Database,
-    game::{Card, Game},
+    game::{Card, Game, Team},
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -35,12 +35,6 @@ pub struct EventMessage {
     pub event: Event,
 }
 
-impl EventMessage {
-    pub fn set_event(&mut self, event: Event) {
-        self.event = event;
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +46,7 @@ pub enum ClientRequestType {
     Message { text: String },
     FlipCard { coord: (usize, usize) },
     NewGame {},
+    GameOver { winning_team: Team, reason: String }
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]

@@ -3,6 +3,7 @@
 // const socket = new WebSocket(uri);
 
 import { useEffect, useRef, useState } from "react";
+import { useCookies } from "react-cookie";
 import { useParams } from "react-router-dom";
 import ChatView from "./ChatView";
 import GameBoardView from "./GameBoardView";
@@ -18,7 +19,7 @@ export type Card = {word: string, cardType: CardType, flipped: boolean, coord: [
 
 export type Board = Card[][]
 
-export type Game = {board: Board, turnTeam: Team, startingTeam: Team}
+export type Game = {board: Board, turnTeam: Team, startingTeam: Team, remainingCards: [number, number]}
 
 export type ClientSession = {id: number, username: string, room: string, is_spymaster: boolean}
 
@@ -82,10 +83,13 @@ export default function Room() {
   const [messages, setMessages] = useState<string[]>([]);
 
   const [game, setGame] = useState<Game | null>(null);
-  const [usernameSet, setUsernameSet] = useState<Boolean>(false);
   const [username, setUsername] = useState<string>("");
 
   const webSocket = useRef<WebSocket | null>(null);
+
+  const [cookies, setCookie] = useCookies(["username"]);
+
+  const usernameIsSet = cookies.username !== undefined;
 
   useEffect(() => {
     if (webSocket.current) {
@@ -98,6 +102,14 @@ export default function Room() {
 
     webSocket.current.onopen = () => {
       console.log("WEBSOCKET OPEN");
+      if (usernameIsSet) {
+        webSocket.current?.send(JSON.stringify(
+          {
+            type: "setName",
+            data: {name: cookies.username}
+          }
+        ));
+      }
     }
 
     webSocket.current.onclose = () => {
@@ -141,6 +153,17 @@ export default function Room() {
     }
   }, []);
 
+  useEffect(() => {
+    if (usernameIsSet && webSocket.current?.readyState === 1) {
+      webSocket.current.send(JSON.stringify(
+        {
+          type: "setName",
+          data: {name: cookies.username}
+        }
+      ));
+    }
+  }, [cookies]);
+
   function sendMessage() {
     webSocket.current?.send(JSON.stringify(
       {
@@ -170,30 +193,38 @@ export default function Room() {
   }
 
   function onSetUsername() {
-    webSocket.current?.send(JSON.stringify(
-      {
-        type: "setName",
-        data: {name: username}
-      }
-    ));
-    setUsernameSet(true);
+    setCookie("username", username, {path: "/"});
   }
 
   if (game === null) {
     return (
-      <>
+      <div style={{width: "100%", 
+                   height: "100%",
+                   display: "flex", 
+                   justifyContent: "center", 
+                   alignItems: "center"}}>
         Loading...
-      </>
+      </div>
     )
   }
 
-  if (!usernameSet) {
+  if (!usernameIsSet) {
     return (
-      <div>
-        Set username
+      <div style={{width: "100%", 
+                   height: "100%",
+                   display: "grid", 
+                   gap: "10px",
+                   gridTemplateColumns: "auto auto",
+                   justifyContent: "center", 
+                   alignContent: "center"}}>
+        <label>Set username</label>
+        <div />
         <input type="text"
                value={username}
-               onChange={(evt) => {evt.preventDefault(); setUsername(evt.target.value)}} />
+               onChange={(evt) => {
+                 evt.preventDefault(); 
+                 setUsername(evt.target.value)
+                }} />
         <button disabled={username === ""} onClick={onSetUsername}>Submit</button>
       </div>
     )
@@ -217,8 +248,15 @@ export default function Room() {
         <div style={{display: "flex", flexDirection: "column", gap: "5px", maxWidth: "100%"}}>
           <h2>Welcome to game {room}</h2>
           <div style={{display: "flex", flexDirection: "column", justifyContent: "center", gap: "10px"}}>
-            <div style={{color: game.turnTeam === Team.BLUE ? "blue" : "red"}}>
-              {game.turnTeam}'s turn!
+            <div style={{display: "flex", flexDirection: "row", justifyContent: "space-between"}}>
+              <div style={{color: game.turnTeam === Team.BLUE ? "blue" : "red"}}>
+                {game.turnTeam}'s turn!
+              </div>
+              <div>
+                <span style={{color: "blue"}}>{game.remainingCards[0]}</span>
+                , 
+                <span style={{color: "red"}}>{game.remainingCards[1]}</span>
+              </div>
             </div>
             <button onClick={restartGame}>Restart</button>
           </div>
@@ -227,12 +265,19 @@ export default function Room() {
                                alignSelf: "left"}} 
                        board={game.board}
                        onFlip={onFlip} />
-        <ChatView style={{overflow: "scroll", 
-                          flexGrow: "1", 
-                          fontSize: "0.75rem", 
-                          lineHeight: "1.25rem",
-                          maxHeight: "200px"}} 
-                  chatMessages={messages} /> 
+        <div style={{display: "flex", 
+                     flexGrow: "1",
+                     flexDirection: "column", 
+                     maxHeight: "200px",
+                     justifyContent: "flex-end"}}>
+          <ChatView style={{overflow: "scroll",
+                            fontSize: "0.75rem", 
+                            lineHeight: "1.25rem",
+                            maxHeight: "100%",
+                            display: "flex",
+                            flexDirection: "column"}} 
+                    chatMessages={messages} /> 
+        </div>
         <div style={{display: "flex", gap: "10px"}}>
           <input type="text"
                 onChange={(evt) => {

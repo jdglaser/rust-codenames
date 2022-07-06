@@ -5,9 +5,8 @@ use actix_web::{
 };
 use actix_web_actors::ws;
 use database::{Database, MemoryDatabase};
-use log::info;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, sync::{Arc, Mutex}};
+use std::{path::PathBuf};
 
 mod client;
 mod database;
@@ -98,5 +97,8 @@ async fn main() -> std::io::Result<()> {
         database: memory_database,
     });
 
-    create_server(app_data).await.unwrap().await
+    create_server(app_data)
+        .await
+        .unwrap()
+        .await
 }

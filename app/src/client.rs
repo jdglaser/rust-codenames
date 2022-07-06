@@ -1,11 +1,11 @@
-use std::{time::{Duration, Instant}, sync::{Arc, Mutex}};
+use std::{time::{Duration, Instant}};
 
 use actix::{
     fut, Actor, ActorContext, ActorFutureExt, Addr, AsyncContext, ContextFutureSpawner, Handler,
     Running, StreamHandler, WrapFuture,
 };
 use actix_web_actors::ws::{self, WebsocketContext};
-use log::{warn, info};
+use log::{warn};
 use serde::{Serialize, Deserialize};
 use rand::{Rng};
 

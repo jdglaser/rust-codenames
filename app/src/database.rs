@@ -16,6 +16,7 @@ pub trait Database {
     fn create_session(&mut self, room: &String) -> Result<usize>;
     fn remove_session(&mut self, session_id: usize) -> Result<()>;
     fn update_game(&mut self, game_id: usize, game_update: &Game) -> Result<()>;
+    fn flip_card(&mut self, game_id: usize, coord: (usize, usize)) -> Result<Game>;
     fn get_game(&self, game_id: usize) -> Result<Game>;
 }
 
@@ -161,6 +162,16 @@ impl Database for MemoryDatabase {
         self.get_lock().sessions.insert(id, session_update.clone());
         Ok(())
     }
+
+    fn flip_card(&mut self, game_id: usize, coord: (usize, usize)) -> Result<Game> {
+        let mut locked_database = self.get_lock();
+        let game = locked_database.games
+            .get_mut(&game_id)
+            .context(format!("Could not find game with id '{}'.", game_id))?;
+        let updated_game = game.flip_card(coord);
+        *game = updated_game.clone();
+        Ok(updated_game.clone())
+    }
 }
 
 #[cfg(test)]
@@ -181,7 +192,7 @@ mod tests {
         assert_eq!(0, room.sessions.len());
         
         let game = db.get_game(room.game_id).unwrap();
-        assert_eq!(5, game.get_board().len());
+        assert_eq!(5, game.board.len());
 
         db.remove_room(&room_name).unwrap();
         assert!(!db.get_rooms()
@@ -194,8 +205,8 @@ mod tests {
         assert_eq!("Could not find room with name 'foo'.", error_msg);
 
         // updates game
-        let new_board = game.flip_card((0, 0));
-        db.update_game(room.game_id, &Game {board: new_board, ..game}).unwrap();
+        let new_game = game.flip_card((0, 0));
+        db.update_game(room.game_id, &new_game).unwrap();
         let new_game = db.get_game(room.game_id).unwrap();
         assert!(new_game.board[0][0].flipped);
     }

@@ -116,16 +116,15 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 });
             }
             ClientRequestType::FlipCard { coord } => {
-                let new_board = game.flip_card(coord);
+                if game.game_over {
+                    debug!("Cannot flip a card in a finished game. Ignoring request.");
+                    return;
+                }
+                let new_game = self.database.flip_card(room.game_id, coord).unwrap();
+                let flipped_card = &new_game.board[coord.0][coord.1];
                 let new_event = Event::FlipCard {
-                    flipped_card: new_board[coord.0][coord.1].clone(),
+                    flipped_card: flipped_card.clone(),
                 };
-                let new_game = Game { 
-                    board: new_board,
-                    turn_team: Team::opposite(&game.turn_team),
-                    ..game.clone() 
-                };
-                self.database.update_game(room.game_id, &new_game).unwrap();
                 send_message_to_clients(new_event);
                 send_game_state_update_to_clients(&new_game);
             }
@@ -135,6 +134,7 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 send_message_to_clients(Event::NewGame {});
                 send_game_state_update_to_clients(&new_game);
             }
+            ClientRequestType::GameOver { winning_team, reason } => debug!("IMPLEMENT ME"),
         }
     }
 }
