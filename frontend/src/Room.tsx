@@ -1,10 +1,7 @@
-
-// const uri = ((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws/" + (room ?? "main");
-// const socket = new WebSocket(uri);
-
-import { useEffect, useRef, useState } from "react";
+import { ReactElement, useEffect, useRef, useState } from "react";
 import { useCookies } from "react-cookie";
 import { useParams } from "react-router-dom";
+import { resolveCardTypeColor } from "./CardCell";
 import ChatView from "./ChatView";
 import GameBoardView from "./GameBoardView";
 
@@ -30,7 +27,8 @@ enum EventType {
   Message = "message",
   GameStateUpdate = "gameStateUpdate",
   NewGame = "newGame",
-  SetName = "setName"
+  SetName = "setName",
+  FlipCard = "flipCard"
 }
 
 enum Team {
@@ -73,14 +71,24 @@ interface SetNameEvent {
   data: {id: number, name: string}
 }
 
-type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | GameStateUpdateEvent | NewGameEvent | SetNameEvent
+interface FlipCardEvent {
+  type: EventType.FlipCard
+  data: {flippedCard: Card}
+}
 
+type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | GameStateUpdateEvent | NewGameEvent | SetNameEvent | FlipCardEvent
+
+interface EventMessage {
+  sender: ClientSession
+  room: string
+  event: Event
+}
 
 export default function Room() {
   const { room } = useParams();
 
   const [message, setMessage] = useState<string>("");
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<(string | ReactElement)[]>([]);
 
   const [game, setGame] = useState<Game | null>(null);
   const [username, setUsername] = useState<string>("");
@@ -91,8 +99,8 @@ export default function Room() {
 
   const usernameIsSet = cookies.username !== undefined;
 
-  useEffect(() => {
-    if (webSocket.current) {
+  function setupWebSocket() {
+    if (webSocket.current && webSocket.current.readyState === webSocket.current.OPEN) {
       console.log("Websocket already setup skipping...")
       return;
     }
@@ -117,39 +125,61 @@ export default function Room() {
     }
     
     webSocket.current.onmessage = (msg: MessageEvent<string>) => {
-      const event: Event = JSON.parse(msg.data);
+      const eventMessage: EventMessage = JSON.parse(msg.data);
+      const {event, sender} = eventMessage;
       switch (event.type) {
         case EventType.Connect:
-          setMessages(prev => [...prev, `Got a connect message with data: ${event.data.id}`]);
           break;
         case EventType.Disconnect:
-          setMessages(prev => [...prev, `User id ${event.data.id} disconnected from the game!`]);
+          setMessages(prev => [...prev, `${sender.username} disconnected from the game.`]);
           break;
         case EventType.TimedOut:
-          setMessages(prev => [...prev, `User id ${event.data.id} timed out and has been disconnected from the game!`])
+          setMessages(prev => [...prev, `${sender.username === "" ? sender.id : sender.username} timed out and has been disconnected from the game.`])
           break;
         case EventType.Message:
-          setMessages(prev => [...prev, `${event.data.sender.username}: ${event.data.text}`])
+          setMessages(prev => [...prev, `${sender.username}: ${event.data.text}`])
           break;
         case EventType.GameStateUpdate:
           setGame(event.data.game)
           break;
         case EventType.NewGame:
-          setMessages(prev => [...prev, "Game restarted!"]);
+          setMessages(prev => [...prev, `${sender.username} restarted the game.`]);
           break;
         case EventType.SetName:
           setMessages(prev => [...prev, `${event.data.name} joined the game!`]);
+          break;
+        case EventType.FlipCard:
+          const {flippedCard: card} = event.data
+          setMessages(prev => [...prev, (
+            <>
+              {sender.username} flipped card "{card.word}". The card was <span style={{color: resolveCardTypeColor(card)}}>{card.cardType}</span>!
+            </>
+          )])
           break;
         default:
           console.error("Unrecognized event: ", event);
       }
     };
+  }
+
+  function handleWebSocketFocus() {
+    if (!webSocket.current || webSocket.current.readyState === WebSocket.CLOSED || webSocket.current.readyState === WebSocket.CLOSING) {
+      console.log("Websocket closed, retrying setup")
+      setupWebSocket();
+    }
+  }
+
+  useEffect(() => {
+    setupWebSocket();
+
+    window.addEventListener("focus", handleWebSocketFocus)
 
     return () => {
       if (webSocket.current) {
         webSocket.current.close()
       }
       webSocket.current = null;
+      window.removeEventListener("focus", handleWebSocketFocus)
     }
   }, []);
 

@@ -31,6 +31,7 @@ pub enum Event {
 #[rtype("()")]
 #[serde(rename_all = "camelCase")]
 pub struct EventMessage {
+    pub sender: ClientSession,
     pub room: String,
     pub event: Event,
 }
@@ -46,7 +47,8 @@ pub enum ClientRequestType {
     Message { text: String },
     FlipCard { coord: (usize, usize) },
     NewGame {},
-    GameOver { winning_team: Team, reason: String }
+    GameOver { winning_team: Team, reason: String },
+    Health {}
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]

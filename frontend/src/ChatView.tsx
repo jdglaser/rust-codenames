@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { ReactElement, useEffect, useRef } from "react";
 import { v4 } from "uuid";
 
-export default function ChatView(props: { chatMessages: string[], style?: React.CSSProperties }) {
+export default function ChatView(props: { chatMessages: (string | ReactElement)[], style?: React.CSSProperties }) {
   const { chatMessages, style } = props;
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);

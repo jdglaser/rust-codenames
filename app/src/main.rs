@@ -13,7 +13,6 @@ mod database;
 mod event;
 mod game;
 mod server;
-mod repo;
 
 use client::WsClient;
 use server::WsServer;

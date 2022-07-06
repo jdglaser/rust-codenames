@@ -123,9 +123,7 @@ impl<T: 'static + Database + std::marker::Unpin> Handler<EventMessage> for WsCli
     type Result = ();
 
     fn handle(&mut self, event_message: EventMessage, ctx: &mut Self::Context) -> Self::Result {
-        let EventMessage { event, room } = event_message;
-
-        ctx.text(serde_json::to_string(&event).unwrap())
+        ctx.text(serde_json::to_string(&event_message).unwrap())
     }
 }
 

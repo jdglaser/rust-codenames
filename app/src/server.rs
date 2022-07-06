@@ -54,10 +54,13 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
         let game = self.database.get_game(room.game_id).unwrap();
         let sessions = self.database.get_room(room_name).unwrap().sessions;
 
+        let senderSession = self.database.get_session(sender_id).unwrap();
+
         let send_message_to_clients = |event: Event| {
             for id in &sessions {
                 debug!("Sending event to id {} with value {:?}", id, &event);
                 self.clients.get(&id).unwrap().do_send(EventMessage {
+                    sender: senderSession.clone(),
                     room: room_name.clone(),
                     event: event.clone(),
                 });
@@ -69,6 +72,7 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
             for id in &sessions {
                 debug!("Sending game state update event to id {}.", id);
                 self.clients.get(id).unwrap().do_send(EventMessage {
+                    sender: senderSession.clone(),
                     room: room_name.clone(),
                     event: Event::GameStateUpdate { game: game.clone() },
                 });
@@ -86,7 +90,7 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 let new_session = ClientSession { username: name.clone(), ..existing_session };
                 self.database.update_session(*sender_id, &new_session).unwrap();
                 send_message_to_clients(Event::SetName { id: *sender_id, name });
-            }
+            },
             ClientRequestType::Disconnect { id } => {
                 debug!("{} disconnected.", id);
                 self.database.remove_session(id).unwrap();
@@ -97,7 +101,7 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 }
                 send_message_to_clients(Event::Disconnect { id });
                 send_game_state_update_to_clients(&game);
-            }
+            },
             ClientRequestType::TimedOut { id } => {
                 self.database.remove_session(id).unwrap();
                 if self.database.get_room(room_name).unwrap().sessions.len() == 0 {
@@ -107,14 +111,14 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 }
                 send_message_to_clients(Event::Disconnect { id });
                 send_game_state_update_to_clients(&game);
-            }
+            },
             ClientRequestType::Message { text } => {
                 let sender_client_session = self.database.get_session(sender_id).unwrap();
                 send_message_to_clients(Event::Message {
                     sender: sender_client_session,
                     text,
                 });
-            }
+            },
             ClientRequestType::FlipCard { coord } => {
                 if game.game_over {
                     debug!("Cannot flip a card in a finished game. Ignoring request.");
@@ -127,14 +131,15 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 };
                 send_message_to_clients(new_event);
                 send_game_state_update_to_clients(&new_game);
-            }
+            },
             ClientRequestType::NewGame {} => {
                 let new_game = game.new_from_current_game();
                 self.database.update_game(room.game_id, &new_game).unwrap();
                 send_message_to_clients(Event::NewGame {});
                 send_game_state_update_to_clients(&new_game);
-            }
+            },
             ClientRequestType::GameOver { winning_team, reason } => debug!("IMPLEMENT ME"),
+            ClientRequestType::Health {} => debug!("I'm healthy!"),
         }
     }
 }

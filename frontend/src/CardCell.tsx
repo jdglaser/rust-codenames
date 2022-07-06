@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardType } from "./Room";
 
-function resolveCardType(card: Card): string {
+export function resolveCardTypeColor(card: Card): string {
   const {cardType, flipped} = card;
 
   if (flipped === false) {
@@ -30,7 +30,7 @@ export default function CardCell(props: { card: Card, onFlip: (coord: [number, n
 
   return (
     <div style={{
-          backgroundColor: resolveCardType(card),
+          backgroundColor: resolveCardTypeColor(card),
           color: (card.flipped && ["BLUE", "RED"].includes(card.cardType)) ? "white" : "",
           display: "flex",
           alignItems: "center",
