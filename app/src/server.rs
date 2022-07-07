@@ -6,7 +6,7 @@ use std::{
 use actix::{Actor, Addr, Context, Handler};
 use log::{debug, info};
 
-use crate::{game::{Game, Team}, client::ClientSession};
+use crate::{game::{Game, Team, GameStatus}, client::ClientSession};
 use crate::{
     client::WsClient,
     database::Database,
@@ -54,13 +54,21 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
         let game = self.database.get_game(room.game_id).unwrap();
         let sessions = self.database.get_room(room_name).unwrap().sessions;
 
-        let senderSession = self.database.get_session(sender_id).unwrap();
+        let sender_session = self.database.get_session(sender_id).unwrap();
+
+        let send_message_to_single_client = |session_id: usize, event: Event| {
+            self.clients.get(&session_id).unwrap().do_send(EventMessage {
+                sender: sender_session.clone(),
+                room: room_name.clone(),
+                event: event.clone()
+            })
+        };
 
         let send_message_to_clients = |event: Event| {
             for id in &sessions {
                 debug!("Sending event to id {} with value {:?}", id, &event);
                 self.clients.get(&id).unwrap().do_send(EventMessage {
-                    sender: senderSession.clone(),
+                    sender: sender_session.clone(),
                     room: room_name.clone(),
                     event: event.clone(),
                 });
@@ -72,7 +80,7 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
             for id in &sessions {
                 debug!("Sending game state update event to id {}.", id);
                 self.clients.get(id).unwrap().do_send(EventMessage {
-                    sender: senderSession.clone(),
+                    sender: sender_session.clone(),
                     room: room_name.clone(),
                     event: Event::GameStateUpdate { game: game.clone() },
                 });
@@ -82,13 +90,15 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
         match request {
             ClientRequestType::Connect { id } => {
                 debug!("{} connected", id);
-                send_message_to_clients(Event::Connect { id });
+                let session = self.database.get_session(&id).unwrap();
+                send_message_to_single_client(*sender_id, Event::UpdateClientSession { session });
                 send_game_state_update_to_clients(&game);
             },
             ClientRequestType::SetName { name } => {
                 let existing_session = self.database.get_session(sender_id).unwrap();
                 let new_session = ClientSession { username: name.clone(), ..existing_session };
                 self.database.update_session(*sender_id, &new_session).unwrap();
+                send_message_to_single_client(*sender_id, Event::UpdateClientSession { session: new_session });
                 send_message_to_clients(Event::SetName { id: *sender_id, name });
             },
             ClientRequestType::Disconnect { id } => {
@@ -120,7 +130,7 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 });
             },
             ClientRequestType::FlipCard { coord } => {
-                if game.game_over {
+                if let GameStatus::OVER { winner: _ } = game.game_status {
                     debug!("Cannot flip a card in a finished game. Ignoring request.");
                     return;
                 }
@@ -135,11 +145,24 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
             ClientRequestType::NewGame {} => {
                 let new_game = game.new_from_current_game();
                 self.database.update_game(room.game_id, &new_game).unwrap();
+                for session in &sessions {
+                    let client_session = self.database.get_session(session).unwrap();
+                    let new_session = ClientSession {is_spymaster: false, ..client_session.clone()};
+                    self.database.update_session(*session, &new_session).unwrap();
+                    send_message_to_single_client(*session, Event::UpdateClientSession { session: new_session });
+                }
                 send_message_to_clients(Event::NewGame {});
                 send_game_state_update_to_clients(&new_game);
             },
-            ClientRequestType::GameOver { winning_team, reason } => debug!("IMPLEMENT ME"),
-            ClientRequestType::Health {} => debug!("I'm healthy!"),
+            ClientRequestType::SetSpyMaster { spymaster } => {
+                let updated_session = ClientSession {
+                    is_spymaster: spymaster,
+                    ..sender_session.clone()
+                };
+                self.database.update_session(*sender_id, &updated_session).unwrap();
+                send_message_to_single_client(*sender_id, Event::UpdateClientSession { session: updated_session.clone() });
+                send_message_to_clients(Event::SetSpyMaster {  })
+            },
         }
     }
 }

@@ -1,4 +1,4 @@
-import { ReactElement, useEffect, useRef, useState } from "react";
+import { KeyboardEvent, ReactElement, useEffect, useRef, useState } from "react";
 import { useCookies } from "react-cookie";
 import { useMediaQuery } from "react-responsive";
 import { useParams } from "react-router-dom";
@@ -17,7 +17,29 @@ export type Card = {word: string, cardType: CardType, flipped: boolean, coord: [
 
 export type Board = Card[][]
 
-export type Game = {board: Board, turnTeam: Team, startingTeam: Team, remainingCards: [number, number]}
+enum Team {
+  RED = "RED",
+  BLUE = "BLUE"
+}
+
+enum GameStatusType {
+  PLAYING = "PLAYING",
+  OVER = "OVER"
+}
+
+interface PlayingGameStatus {
+  type: GameStatusType.PLAYING
+  data: {}
+}
+
+interface OverGameStatus {
+  type: GameStatusType.OVER
+  data: {winner: Team}
+}
+
+type GameStatus = PlayingGameStatus | OverGameStatus
+
+export type Game = {board: Board, turnTeam: Team, startingTeam: Team, remainingCards: [number, number], gameStatus: GameStatus}
 
 export type ClientSession = {id: number, username: string, room: string, is_spymaster: boolean}
 
@@ -29,12 +51,9 @@ enum EventType {
   GameStateUpdate = "gameStateUpdate",
   NewGame = "newGame",
   SetName = "setName",
-  FlipCard = "flipCard"
-}
-
-enum Team {
-  RED = "RED",
-  BLUE = "BLUE"
+  FlipCard = "flipCard",
+  UpdateClientSession = "updateClientSession",
+  SetSpyMaster = "setSpyMaster"
 }
 
 interface ConnectEvent {
@@ -77,7 +96,19 @@ interface FlipCardEvent {
   data: {flippedCard: Card}
 }
 
-type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | GameStateUpdateEvent | NewGameEvent | SetNameEvent | FlipCardEvent
+interface UpdateClientSessionEvent {
+  type: EventType.UpdateClientSession
+  data: {session: ClientSession}
+}
+
+interface SetSpyMasterEvent {
+  type: EventType.SetSpyMaster,
+  data: {}
+}
+
+type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | 
+  GameStateUpdateEvent | NewGameEvent | SetNameEvent | FlipCardEvent | 
+  UpdateClientSessionEvent | SetSpyMasterEvent
 
 interface EventMessage {
   sender: ClientSession
@@ -93,18 +124,21 @@ export default function Room() {
 
   const [game, setGame] = useState<Game | null>(null);
   const [username, setUsername] = useState<string>("");
+  const [myClientSession, setMyClientSession] = useState<ClientSession>();
 
   const webSocket = useRef<WebSocket | null>(null);
   const prevGameState = useRef<Game>();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [cookies, setCookie] = useCookies(["username"]);
 
   const usernameIsSet = cookies.username !== undefined;
 
+  const gameOver = !game ? false : game.gameStatus.type == GameStatusType.OVER;
+  const showCards = gameOver || (myClientSession ? myClientSession.is_spymaster : false)
+
   const isLandscape = useMediaQuery({query: "(orientation: landscape)"});
   const isDesktop = useMediaQuery({query: "(min-width: 1025px)"});
-
-  console.log(isLandscape)
 
   useEffect(() => {
     if (game) {
@@ -173,9 +207,16 @@ export default function Room() {
           const {flippedCard: card} = event.data
           setMessages(prev => [...prev, (
             <>
-              {sender.username} flipped card "{card.word}". The card was <span style={{fontWeight: "bold", color: resolveCardTypeColor(card)}}>{card.cardType}</span>!
+              {sender.username} flipped card "{card.word}". The card was <span style={{fontWeight: "bold", color: resolveCardTypeColor(card, true)}}>{card.cardType}</span>!
             </>
           )])
+          break;
+        case EventType.UpdateClientSession:
+          console.log("Client session updated")
+          setMyClientSession(event.data.session)
+          break;
+        case EventType.SetSpyMaster:
+          setMessages(prev => [...prev, `${sender.username} set themselves as the spymaster!`])
           break;
         default:
           console.error("Unrecognized event: ", event);
@@ -190,6 +231,12 @@ export default function Room() {
     }
   }
 
+  function handleEnterPressed(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key == "Enter") {
+      sendMessage()
+    }
+  }
+
   useEffect(() => {
     setupWebSocket();
 
@@ -200,7 +247,7 @@ export default function Room() {
         webSocket.current.close()
       }
       webSocket.current = null;
-      window.removeEventListener("focus", handleWebSocketFocus)
+      window.removeEventListener("focus", handleWebSocketFocus);
     }
   }, []);
 
@@ -239,6 +286,15 @@ export default function Room() {
       {
         type: "flipCard",
         data: {coord}
+      }
+    ))
+  }
+
+  function setSpymaster() {
+    webSocket.current?.send(JSON.stringify(
+      {
+        type: "setSpyMaster",
+        data: {spymaster: true}
       }
     ))
   }
@@ -293,8 +349,8 @@ export default function Room() {
       <div style={{display: "flex", 
                    flexDirection: "column",
                    gap: "10px",
-                   height: isDesktop ? "75%" : "100%",
-                   width: isDesktop ? "75%" : "100%",
+                   height: isDesktop ? "90%" : "100%",
+                   width: isDesktop ? "90%" : "100%",
                    justifyContent: "center"}}>
         <div style={{display: "flex", flexDirection: "column", gap: "5px", maxWidth: "100%"}}>
           <h2>Welcome to game {room}</h2>
@@ -304,13 +360,19 @@ export default function Room() {
                 <div style={{color: "blue", padding: "5px", backgroundColor: "white", borderRadius: "4px 0 0 4px"}}>{game.remainingCards[0]}</div>
                 <div style={{color: "red", padding: "5px", backgroundColor: "white", borderRadius: "0 4px 4px 0"}}>{game.remainingCards[1]}</div>
               </div>
-              <div style={{width: "150px", color: game.turnTeam === Team.BLUE ? "blue" : "red"}}>
-                {game.turnTeam}'s turn!
-              </div>
+              {game.gameStatus.type == GameStatusType.OVER ? (
+                <div>
+                  Game over! <span style={{width: "150px", color: game.gameStatus.data.winner === Team.BLUE ? "blue" : "red"}}>{game.gameStatus.data.winner}</span> team wins!
+                </div>
+              ) : (
+                <div style={{width: "150px", color: game.turnTeam === Team.BLUE ? "blue" : "red"}}>
+                  {game.turnTeam}'s turn!
+                </div>
+              )}
             </div>
             <div style={{display: "flex", gap: "10px"}}>
               <button onClick={restartGame}>Restart</button>
-              <button>Spymaster</button>
+              <button onClick={setSpymaster}>Spymaster</button>
             </div>
           </div>
         </div>
@@ -324,7 +386,8 @@ export default function Room() {
                      height: "100%",
                      width: "100%"}}>
           <GameBoardView board={game.board}
-                        onFlip={onFlip} />
+                         onFlip={onFlip}
+                         showCards={showCards} />
           <div style={{display: "flex",
                       flexDirection: "column", 
                       height: "100%",
@@ -340,12 +403,15 @@ export default function Room() {
             <div style={{display: "flex", gap: "10px"}}>
               <input type="text"
                     onChange={(evt) => {
-                      evt.preventDefault();
                       setMessage(evt.target.value);
                     }}
                     value={message}
-                    style={{flex: "0.75"}} />
-              <button style={{flex: "0.25"}} onClick={sendMessage}>Send</button>
+                    style={{flex: "0.8"}}
+                    ref={inputRef}
+                    onKeyDown={(evt) => {
+                      handleEnterPressed(evt)
+                    }} />
+              <button type="submit" style={{flex: "0.2"}} onClick={sendMessage}>Send</button>
             </div>
           </div>
         </div>

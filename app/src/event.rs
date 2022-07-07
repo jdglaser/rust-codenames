@@ -25,6 +25,8 @@ pub enum Event {
     FlipCard { flipped_card: Card },
     NewGame {},
     GameStateUpdate { game: Game },
+    UpdateClientSession { session: ClientSession },
+    SetSpyMaster {}
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]
@@ -47,8 +49,7 @@ pub enum ClientRequestType {
     Message { text: String },
     FlipCard { coord: (usize, usize) },
     NewGame {},
-    GameOver { winning_team: Team, reason: String },
-    Health {}
+    SetSpyMaster { spymaster: bool }
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]

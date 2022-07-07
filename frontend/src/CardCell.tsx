@@ -2,10 +2,10 @@ import React from "react";
 import { useMediaQuery } from "react-responsive";
 import { Card, CardType } from "./Room";
 
-export function resolveCardTypeColor(card: Card): string {
+export function resolveCardTypeColor(card: Card, showCards: boolean): string {
   const {cardType, flipped} = card;
 
-  if (flipped === false) {
+  if (!showCards && flipped === false) {
     return "white";
   }
 
@@ -24,8 +24,8 @@ export function resolveCardTypeColor(card: Card): string {
   return "tan"
 }
 
-export default function CardCell(props: { card: Card, onFlip: (coord: [number, number]) => void }) {
-  const { card, onFlip } = props;
+export default function CardCell(props: { card: Card, onFlip: (coord: [number, number]) => void, showCards: boolean }) {
+  const { card, onFlip, showCards } = props;
 
   const isLandscape = useMediaQuery({query: "(orientation: landscape)"});
   const isDesktop = useMediaQuery({query: "(min-width: 1025px)"});
@@ -44,8 +44,8 @@ export default function CardCell(props: { card: Card, onFlip: (coord: [number, n
 
   return (
     <div style={{
-          backgroundColor: resolveCardTypeColor(card),
-          color: (card.flipped && ["BLUE", "RED"].includes(card.cardType)) ? "white" : "",
+          backgroundColor: resolveCardTypeColor(card, showCards),
+          color: ((showCards || card.flipped) && ["BLUE", "RED"].includes(card.cardType)) ? "white" : "",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -58,7 +58,7 @@ export default function CardCell(props: { card: Card, onFlip: (coord: [number, n
         role="button"
         tabIndex={0}
         onClick={() => {
-          if (card.flipped) {
+          if (card.flipped || showCards) {
             return;
           }
           onFlip(card.coord)

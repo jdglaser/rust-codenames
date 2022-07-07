@@ -73,13 +73,20 @@ impl Default for Card {
 pub type Board = [[Card; 5]; 5];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type", content = "data")]
+pub enum GameStatus {
+    PLAYING {},
+    OVER { winner: Team }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
     pub starting_team: Team,
     pub turn_team: Team,
     pub board: Board,
     pub remaining_cards: (u8, u8),
-    pub game_over: bool
+    pub game_status: GameStatus
 }
 
 impl Game {
@@ -90,7 +97,7 @@ impl Game {
             turn_team: starting_team.clone(),
             remaining_cards: Game::initalize_remaining_cards(&starting_team),
             starting_team,
-            game_over: false
+            game_status: GameStatus::PLAYING {  }
         };
     }
 
@@ -101,7 +108,7 @@ impl Game {
             turn_team: starting_team.clone(),
             remaining_cards: Game::initalize_remaining_cards(&starting_team),
             starting_team,
-            game_over: false
+            game_status: GameStatus::PLAYING {  }
         };
     }
 
@@ -178,22 +185,31 @@ impl Game {
         match card.card_type {
             CardType::BLUE => {
                 new_game.remaining_cards.0 -= 1;
+
+                if new_game.remaining_cards.0 == 0 {
+                    new_game.game_status = GameStatus::OVER { winner: Team::BLUE }
+                }
+
                 if let Team::RED = new_game.turn_team {
                     new_game.turn_team = Team::opposite(&new_game.turn_team);
                 }
             },
             CardType::RED => {
                 new_game.remaining_cards.1 -= 1;
+
+                if new_game.remaining_cards.1 == 0 {
+                    new_game.game_status = GameStatus::OVER { winner: Team::RED };
+                }
+
                 if let Team::BLUE = new_game.turn_team {
                     new_game.turn_team = Team::opposite(&new_game.turn_team);
                 }
             },
+            CardType::ASSASSIN => {
+                new_game.game_status = GameStatus::OVER { winner: Team::opposite(&new_game.turn_team) }
+            }
             _ => new_game.turn_team = Team::opposite(&new_game.turn_team)
         };
-
-        if new_game.remaining_cards.0 == 0 || new_game.remaining_cards.1 == 0 {
-            new_game.game_over = true;
-        }
 
         *card = Card {
             flipped: true, 
