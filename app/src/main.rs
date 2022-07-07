@@ -5,6 +5,8 @@ use actix_web::{
 };
 use actix_web_actors::ws;
 use database::{Database, MemoryDatabase};
+use mime_guess::from_path;
+use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf};
 
@@ -35,6 +37,10 @@ struct UserInfo {
     username: String
 }
 
+#[derive(RustEmbed)]
+#[folder = "dist/"]
+struct Assets;
+
 async fn ws_index<T: Database + 'static + std::marker::Unpin + Clone>(
     path: web::Path<String>,
     req: HttpRequest,
@@ -61,10 +67,24 @@ async fn get_items() -> impl Responder {
     HttpResponse::Ok().json(items)
 }
 
-async fn index(req: HttpRequest) -> Result<fs::NamedFile> {
-    let path_str = format!("../frontend/dist/{}", req.match_info().query("filename"));
-    let path: PathBuf = path_str.parse().unwrap();
-    Ok(fs::NamedFile::open(path)?)
+fn handle_embedded_file(path: &str) -> HttpResponse {
+    println!("PATH: {}", path);
+    match Assets::get(path) {
+      Some(content) => HttpResponse::Ok()
+        .content_type(from_path(path).first_or_octet_stream().as_ref())
+        .body(content.data.into_owned()),
+      None => HttpResponse::NotFound().body("404 Not Found"),
+    }
+  }
+
+#[actix_web::get("/{_:.*}")]
+async fn index(req: HttpRequest) -> impl Responder {
+    handle_embedded_file("index.html")
+}
+
+#[actix_web::get("/assets/{_:.*}")]
+async fn dist(path: web::Path<String>) -> impl Responder {
+    handle_embedded_file(&format!("assets/{}", path.as_str()))
 }
 
 async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin + Clone>(
@@ -75,10 +95,10 @@ async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin 
             .app_data(app_data.clone())
             .service(web::scope("/api").service(get_items))
             .service(web::scope("/ws").route("/{room}", web::get().to(ws_index::<T>)))
-            .service(fs::Files::new("/", "../frontend/dist").index_file("index.html"))
-            .route("/{filename:.*}", web::get().to(index))
+            .service(dist)
+            .service(index)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .workers(4)
     .run();
     Result::Ok(server)
