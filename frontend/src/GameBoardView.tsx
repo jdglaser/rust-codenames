@@ -8,7 +8,7 @@ export default function GameBoardView(props: { board: Board, onFlip: (coord: [nu
   return (
     <div style={style}>
       {board === null ? null : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "8px" }}>
+        <div style={{display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "8px", height: "100%"}}>
           {board.map(row => row.map(card => (
             <CardCell key={card.coord.toString()} card={card} onFlip={onFlip} />
           )))}

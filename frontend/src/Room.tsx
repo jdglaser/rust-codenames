@@ -1,5 +1,6 @@
 import { ReactElement, useEffect, useRef, useState } from "react";
 import { useCookies } from "react-cookie";
+import { useMediaQuery } from "react-responsive";
 import { useParams } from "react-router-dom";
 import { resolveCardTypeColor } from "./CardCell";
 import ChatView from "./ChatView";
@@ -94,10 +95,22 @@ export default function Room() {
   const [username, setUsername] = useState<string>("");
 
   const webSocket = useRef<WebSocket | null>(null);
+  const prevGameState = useRef<Game>();
 
   const [cookies, setCookie] = useCookies(["username"]);
 
   const usernameIsSet = cookies.username !== undefined;
+
+  const isLandscape = useMediaQuery({query: "(orientation: landscape)"});
+  const isDesktop = useMediaQuery({query: "(min-width: 1025px)"});
+
+  console.log(isLandscape)
+
+  useEffect(() => {
+    if (game) {
+      prevGameState.current = game;
+    }
+  }, [game]);
 
   function setupWebSocket() {
     if (webSocket.current && webSocket.current.readyState === webSocket.current.OPEN) {
@@ -140,6 +153,14 @@ export default function Room() {
           setMessages(prev => [...prev, `${sender.username}: ${event.data.text}`])
           break;
         case EventType.GameStateUpdate:
+          if (prevGameState.current?.turnTeam && prevGameState.current?.turnTeam !== event.data.game.turnTeam) {
+            const {turnTeam} = event.data.game;
+            setMessages(prev => [...prev, (
+              <>
+                It is now <span style={{color: turnTeam === "BLUE" ? "blue" : "red"}}>{turnTeam}'s</span> turn! 
+              </>
+            )])
+          }
           setGame(event.data.game)
           break;
         case EventType.NewGame:
@@ -152,7 +173,7 @@ export default function Room() {
           const {flippedCard: card} = event.data
           setMessages(prev => [...prev, (
             <>
-              {sender.username} flipped card "{card.word}". The card was <span style={{color: resolveCardTypeColor(card)}}>{card.cardType}</span>!
+              {sender.username} flipped card "{card.word}". The card was <span style={{fontWeight: "bold", color: resolveCardTypeColor(card)}}>{card.cardType}</span>!
             </>
           )])
           break;
@@ -263,59 +284,70 @@ export default function Room() {
   return (
     <div style={{height: "100%", 
                  width: "100%",
-                 maxWidth: "100%",
-                 maxHeight: "100%",
                  display: "flex", 
                  flexDirection: "column",
-                 padding: "30px",
+                 padding: "8px",
                  gap: "10px",
-                 alignItems: "center"}}>
+                 alignItems: "center",
+                 justifyContent: "center"}}>
       <div style={{display: "flex", 
-                   flexDirection: "column", 
+                   flexDirection: "column",
                    gap: "10px",
-                   height: "100%",
+                   height: isDesktop ? "75%" : "100%",
+                   width: isDesktop ? "75%" : "100%",
                    justifyContent: "center"}}>
         <div style={{display: "flex", flexDirection: "column", gap: "5px", maxWidth: "100%"}}>
           <h2>Welcome to game {room}</h2>
           <div style={{display: "flex", flexDirection: "column", justifyContent: "center", gap: "10px"}}>
-            <div style={{display: "flex", flexDirection: "row", justifyContent: "space-between"}}>
-              <div style={{color: game.turnTeam === Team.BLUE ? "blue" : "red"}}>
+            <div style={{display: "flex", flexDirection: "row", gap: "25px", alignItems: "center"}}>
+              <div style={{width: "50px", textAlign: "center", display: "grid", gridTemplateColumns: "auto auto", gap: "1px", backgroundColor: "black", border: "1px solid black", borderRadius: "5px"}}>
+                <div style={{color: "blue", padding: "5px", backgroundColor: "white", borderRadius: "4px 0 0 4px"}}>{game.remainingCards[0]}</div>
+                <div style={{color: "red", padding: "5px", backgroundColor: "white", borderRadius: "0 4px 4px 0"}}>{game.remainingCards[1]}</div>
+              </div>
+              <div style={{width: "150px", color: game.turnTeam === Team.BLUE ? "blue" : "red"}}>
                 {game.turnTeam}'s turn!
               </div>
-              <div>
-                <span style={{color: "blue"}}>{game.remainingCards[0]}</span>
-                , 
-                <span style={{color: "red"}}>{game.remainingCards[1]}</span>
-              </div>
             </div>
-            <button onClick={restartGame}>Restart</button>
+            <div style={{display: "flex", gap: "10px"}}>
+              <button onClick={restartGame}>Restart</button>
+              <button>Spymaster</button>
+            </div>
           </div>
         </div>
-        <GameBoardView style={{width: "100%", 
-                               alignSelf: "left"}} 
-                       board={game.board}
-                       onFlip={onFlip} />
-        <div style={{display: "flex", 
-                     flexGrow: "1",
-                     flexDirection: "column", 
-                     maxHeight: "200px",
-                     justifyContent: "flex-end"}}>
-          <ChatView style={{overflow: "scroll",
-                            fontSize: "0.75rem", 
-                            lineHeight: "1.25rem",
-                            maxHeight: "100%",
-                            display: "flex",
-                            flexDirection: "column"}} 
-                    chatMessages={messages} /> 
-        </div>
-        <div style={{display: "flex", gap: "10px"}}>
-          <input type="text"
-                onChange={(evt) => {
-                  evt.preventDefault();
-                  setMessage(evt.target.value);
-                }}
-                value={message} />
-          <button onClick={sendMessage}>Send</button>
+        <div style={{display: "grid", 
+                     gridTemplateColumns: isLandscape ? "1fr 1fr" : "1fr", 
+                     gridTemplateRows: isLandscape ? "1fr" : "1fr 1fr",
+                     gap: "10px",
+                     overflow: "hidden", 
+                     justifyContent: "center", 
+                     alignContent: "center",
+                     height: "100%",
+                     width: "100%"}}>
+          <GameBoardView board={game.board}
+                        onFlip={onFlip} />
+          <div style={{display: "flex",
+                      flexDirection: "column", 
+                      height: "100%",
+                      justifyContent: "flex-end",
+                      overflow: "hidden"}}>
+            <ChatView chatMessages={messages}
+                      style={{overflow: "scroll",
+                              fontSize: "0.75rem", 
+                              lineHeight: "1.25rem",
+                              maxHeight: "100%",
+                              display: "flex",
+                              flexDirection: "column"}} /> 
+            <div style={{display: "flex", gap: "10px"}}>
+              <input type="text"
+                    onChange={(evt) => {
+                      evt.preventDefault();
+                      setMessage(evt.target.value);
+                    }}
+                    value={message}
+                    style={{flex: "0.75"}} />
+              <button style={{flex: "0.25"}} onClick={sendMessage}>Send</button>
+            </div>
+          </div>
         </div>
         </div>
     </div> 

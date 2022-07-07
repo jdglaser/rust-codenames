@@ -24,9 +24,10 @@ function App() {
                  flexDirection: "column",
                  justifyContent: "center",
                  alignItems: "center",
-                 height: "100%"}}>
+                 height: "100%",
+                 padding: "20px"}}>
         <div>
-          <h1 style={{textAlign: "center"}}>Secret Codenames Game</h1>
+          <h1 style={{textAlign: "center"}}>Secret Word Game</h1>
           <h2 style={{textAlign: "center"}}>{usernameIsSet ? `Welcome Back ${username}` : "Hello New User"}!</h2>
           <div style={{display: "grid",
                        gridTemplateColumns: "auto auto",
@@ -49,7 +50,7 @@ function App() {
                       setName(evt.target.value)
                   }}
                   value={name} />
-            <button onClick={() => navigate(`/chat/${name}`)} disabled={name === "" || !usernameIsSet}>Join game</button>
+            <button onClick={() => navigate(`/game/${name}`)} disabled={name === "" || !usernameIsSet}>Join game</button>
           </div>
         </div>
     </div>
