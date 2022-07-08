@@ -1,5 +1,6 @@
 import React from 'react';
 import { CookiesProvider } from 'react-cookie';
+import Div100vh from 'react-div-100vh';
 import ReactDOM from 'react-dom/client';
 import {
   BrowserRouter, Route, Routes
@@ -12,12 +13,12 @@ import Room from './Room';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <CookiesProvider>
     <BrowserRouter>
-      <div style={{height: "100vh", maxHeight: "100vh"}}>
+      <Div100vh>
         <Routes>
           <Route path="/game/:room" element={<Room />} />
           <Route path="/" element={<App />} />
         </Routes>
-      </div>
+      </Div100vh>
     </BrowserRouter>
   </CookiesProvider>
 )
