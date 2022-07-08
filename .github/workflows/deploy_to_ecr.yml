@@ -55,6 +55,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: arn:aws:iam::618556235307:role/GitHubActionsECR
+          role-duration-seconds: 1200
 
       - name: Login to Amazon ECR
         id: login-ecr
