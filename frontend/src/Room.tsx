@@ -300,7 +300,9 @@ export default function Room() {
   }
 
   function onSetUsername() {
-    setCookie("username", username, {path: "/"});
+    const expireDate = new Date()
+    expireDate.setFullYear(expireDate.getFullYear() + 5);
+    setCookie("username", username, {path: "/", expires: expireDate});
   }
 
   if (game === null) {

@@ -41,7 +41,11 @@ function App() {
                   setUsernameText(evt.target.value)
               }}
               value={usernameText} />
-            <button disabled={usernameText == ""} onClick={() => setCookie("username", usernameText)}>{usernameIsSet ? "Update username" : "Set username"}</button>
+            <button disabled={usernameText == ""} onClick={() => {
+              const expireDate = new Date();
+              expireDate.setFullYear(expireDate.getFullYear() + 5);
+              setCookie("username", usernameText, {path: "/", expires: expireDate});
+            }}>{usernameIsSet ? "Update username" : "Set username"}</button>
             <label>Enter a game name</label>
             <div />
             <input type="text"
