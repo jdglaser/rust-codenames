@@ -27,7 +27,7 @@ function App() {
                  height: "100%",
                  padding: "20px"}}>
         <div>
-          <h1 style={{textAlign: "center"}}>Secret Word Game</h1>
+          <h1 style={{textAlign: "center"}}>Codewords</h1>
           <h2 style={{textAlign: "center"}}>{usernameIsSet ? `Welcome Back ${username}` : "Hello New User"}!</h2>
           <div style={{display: "grid",
                        gridTemplateColumns: "auto auto",
