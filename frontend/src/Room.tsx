@@ -53,7 +53,8 @@ enum EventType {
   SetName = "setName",
   FlipCard = "flipCard",
   UpdateClientSession = "updateClientSession",
-  SetSpyMaster = "setSpyMaster"
+  SetSpyMaster = "setSpyMaster",
+  NextTurn = "nextTurn"
 }
 
 interface ConnectEvent {
@@ -106,9 +107,14 @@ interface SetSpyMasterEvent {
   data: {}
 }
 
+interface NextTurnEvent {
+  type: EventType.NextTurn
+  data: {}
+}
+
 type Event = ConnectEvent | DisconnectEvent | TimedOutEvent | ChatMessageEvent | 
   GameStateUpdateEvent | NewGameEvent | SetNameEvent | FlipCardEvent | 
-  UpdateClientSessionEvent | SetSpyMasterEvent
+  UpdateClientSessionEvent | SetSpyMasterEvent | NextTurnEvent
 
 interface EventMessage {
   sender: ClientSession
@@ -134,8 +140,9 @@ export default function Room() {
 
   const usernameIsSet = cookies.username !== undefined;
 
-  const gameOver = !game ? false : game.gameStatus.type == GameStatusType.OVER;
-  const showCards = gameOver || (myClientSession ? myClientSession.is_spymaster : false)
+  const gameOver = game ? game.gameStatus.type == GameStatusType.OVER : false;
+  const isSpymaster = myClientSession ? myClientSession.is_spymaster : false;
+  // const showCards = gameOver || (myClientSession ? myClientSession.is_spymaster : false)
 
   const isLandscape = useMediaQuery({query: "(orientation: landscape)"});
   const isDesktop = useMediaQuery({query: "(min-width: 1025px)"});
@@ -207,7 +214,7 @@ export default function Room() {
           const {flippedCard: card} = event.data
           setMessages(prev => [...prev, (
             <>
-              {sender.username} flipped card "{card.word}". The card was <span style={{fontWeight: "bold", color: resolveCardTypeColor(card, true)}}>{card.cardType}</span>!
+              {sender.username} flipped card "{card.word}". The card was <span style={{fontWeight: "bold", color: resolveCardTypeColor(card, true, true)}}>{card.cardType}</span>!
             </>
           )])
           break;
@@ -217,6 +224,9 @@ export default function Room() {
           break;
         case EventType.SetSpyMaster:
           setMessages(prev => [...prev, `${sender.username} set themselves as the spymaster!`])
+          break;
+        case EventType.NextTurn:
+          setMessages(prev => [...prev, `${sender.username} advanced the turn.`])
           break;
         default:
           console.error("Unrecognized event: ", event);
@@ -299,6 +309,15 @@ export default function Room() {
     ))
   }
 
+  function nextTurn() {
+    webSocket.current?.send(JSON.stringify(
+      {
+        type: "nextTurn",
+        data: {}
+      }
+    ))
+  }
+
   function onSetUsername() {
     const expireDate = new Date()
     expireDate.setFullYear(expireDate.getFullYear() + 5);
@@ -375,6 +394,7 @@ export default function Room() {
             <div style={{display: "flex", gap: "10px"}}>
               <button onClick={restartGame}>Restart</button>
               <button onClick={setSpymaster}>Spymaster</button>
+              <button onClick={nextTurn}>Next turn</button>
             </div>
           </div>
         </div>
@@ -389,7 +409,8 @@ export default function Room() {
                      width: "100%"}}>
           <GameBoardView board={game.board}
                          onFlip={onFlip}
-                         showCards={showCards} />
+                         gameOver={gameOver}
+                         isSpymaster={isSpymaster} />
           <div style={{display: "flex",
                       flexDirection: "column", 
                       height: "100%",

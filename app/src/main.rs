@@ -1,14 +1,12 @@
 use actix::{Actor, Addr};
-use actix_files as fs;
 use actix_web::{
-    dev::Server, get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
+    dev::Server, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use actix_web_actors::ws;
 use database::{Database, MemoryDatabase};
 use mime_guess::from_path;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf};
 
 mod client;
 mod database;
@@ -18,13 +16,6 @@ mod server;
 
 use client::WsClient;
 use server::WsServer;
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Item {
-    name: String,
-    age: u8,
-    weight: f64,
-}
 
 #[derive(Clone)]
 struct AppData<T: 'static + Database + std::marker::Unpin> {
@@ -56,17 +47,6 @@ async fn ws_index<T: Database + 'static + std::marker::Unpin + Clone>(
     resp
 }
 
-#[get("/items")]
-async fn get_items() -> impl Responder {
-    let items = vec![Item {
-        name: "Bob".to_string(),
-        age: 15,
-        weight: 163.18,
-    }];
-
-    HttpResponse::Ok().json(items)
-}
-
 fn handle_embedded_file(path: &str) -> HttpResponse {
     println!("PATH: {}", path);
     match Assets::get(path) {
@@ -78,7 +58,7 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
   }
 
 #[actix_web::get("/{_:.*}")]
-async fn index(req: HttpRequest) -> impl Responder {
+async fn index() -> impl Responder {
     handle_embedded_file("index.html")
 }
 
@@ -93,7 +73,6 @@ async fn create_server<T: 'static + Database + Sync + Send + std::marker::Unpin 
     let server = HttpServer::new(move || {
         App::new()
             .app_data(app_data.clone())
-            .service(web::scope("/api").service(get_items))
             .service(web::scope("/ws").route("/{room}", web::get().to(ws_index::<T>)))
             .service(dist)
             .service(index)

@@ -2,10 +2,10 @@ import React from "react";
 import { useMediaQuery } from "react-responsive";
 import { Card, CardType } from "./Room";
 
-export function resolveCardTypeColor(card: Card, showCards: boolean): string {
+export function resolveCardTypeColor(card: Card, gameOver: boolean, isSpymaster: boolean): string {
   const {cardType, flipped} = card;
 
-  if (!showCards && flipped === false) {
+  if (!gameOver && !isSpymaster && !flipped) {
     return "white";
   }
 
@@ -24,8 +24,8 @@ export function resolveCardTypeColor(card: Card, showCards: boolean): string {
   return "tan"
 }
 
-export default function CardCell(props: { card: Card, onFlip: (coord: [number, number]) => void, showCards: boolean }) {
-  const { card, onFlip, showCards } = props;
+export default function CardCell(props: { card: Card, onFlip: (coord: [number, number]) => void, gameOver: boolean, isSpymaster: boolean }) {
+  const { card, onFlip, gameOver, isSpymaster } = props;
 
   const isLandscape = useMediaQuery({query: "(orientation: landscape)"});
   const isDesktop = useMediaQuery({query: "(min-width: 1025px)"});
@@ -44,8 +44,8 @@ export default function CardCell(props: { card: Card, onFlip: (coord: [number, n
 
   return (
     <div style={{
-          backgroundColor: resolveCardTypeColor(card, showCards),
-          color: ((showCards || card.flipped) && ["BLUE", "RED"].includes(card.cardType)) ? "white" : "",
+          backgroundColor: resolveCardTypeColor(card, gameOver, isSpymaster),
+          color: ((gameOver || isSpymaster || card.flipped) && ["BLUE", "RED"].includes(card.cardType)) ? "white" : "",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -53,12 +53,13 @@ export default function CardCell(props: { card: Card, onFlip: (coord: [number, n
           borderRadius: "5px",
           border: "1px solid black",
           fontSize: resolveFontSize(),
-          cursor: card.flipped ? "" : "pointer"
+          cursor: card.flipped || gameOver || isSpymaster ? "" : "pointer",
+          opacity: isSpymaster && card.flipped ? "30%" : ""
         }}
         role="button"
         tabIndex={0}
         onClick={() => {
-          if (card.flipped || showCards) {
+          if (card.flipped || gameOver || isSpymaster) {
             return;
           }
           onFlip(card.coord)

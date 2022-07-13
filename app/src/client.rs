@@ -7,7 +7,6 @@ use actix::{
 use actix_web_actors::ws::{self, WebsocketContext};
 use log::{warn};
 use serde::{Serialize, Deserialize};
-use rand::{Rng};
 
 use crate::{
     database::Database,
@@ -34,6 +33,7 @@ impl ClientSession {
     }
 }
 
+#[allow(dead_code)]
 pub struct WsClient<T: 'static + Database + std::marker::Unpin> {
     session_id: usize,
     room_name: String,

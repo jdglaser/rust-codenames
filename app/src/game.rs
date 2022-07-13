@@ -1,10 +1,9 @@
 use std::{
-    collections::HashSet,
     fs::File,
     io::{BufRead, BufReader},
 };
 
-use log::{debug, info};
+use log::{debug};
 use rand::{prelude::SliceRandom, Rng};
 use serde::{Deserialize, Serialize};
 
@@ -20,11 +19,7 @@ impl CardType {
     fn from_team(team: &Team) -> CardType {
         match team {
             Team::BLUE => CardType::BLUE,
-            Team::RED => CardType::RED,
-            _ => panic!(
-                "Cannot create a CardType enum variant from Team variant: '{:?}'",
-                team
-            ),
+            Team::RED => CardType::RED
         }
     }
 }
@@ -216,6 +211,12 @@ impl Game {
             ..card.clone()
         };
 
+        new_game
+    }
+
+    pub fn next_turn(&self) -> Game {
+        let mut new_game = self.clone();
+        new_game.turn_team = Team::opposite(&new_game.turn_team);
         new_game
     }
 }

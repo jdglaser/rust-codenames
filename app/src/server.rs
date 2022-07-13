@@ -1,12 +1,11 @@
 use std::{
-    collections::{HashMap},
-    sync::{Arc, Mutex},
+    collections::{HashMap}
 };
 
 use actix::{Actor, Addr, Context, Handler};
 use log::{debug, info};
 
-use crate::{game::{Game, Team, GameStatus}, client::ClientSession};
+use crate::{game::{Game, GameStatus}, client::ClientSession};
 use crate::{
     client::WsClient,
     database::Database,
@@ -163,6 +162,11 @@ impl<T: 'static + Database + std::marker::Unpin> WsServer<T> {
                 send_message_to_single_client(*sender_id, Event::UpdateClientSession { session: updated_session.clone() });
                 send_message_to_clients(Event::SetSpyMaster {  })
             },
+            ClientRequestType::NextTurn {} => {
+                let new_game = self.database.next_turn(room.game_id).unwrap();
+                send_message_to_clients(Event::NextTurn {  });
+                send_game_state_update_to_clients(&new_game);
+            }
         }
     }
 }
@@ -175,7 +179,7 @@ impl<T: 'static + Database + std::marker::Unpin> Actor for WsServer<T> {
 impl<T: 'static + Database + std::marker::Unpin> Handler<NewClientConnection<T>> for WsServer<T> {
     type Result = usize;
 
-    fn handle(&mut self, msg: NewClientConnection<T>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: NewClientConnection<T>, _ctx: &mut Self::Context) -> Self::Result {
         if self.database.get_room(&msg.room).is_err() {
             self.database.create_room(&msg.room).unwrap();
         }
@@ -197,7 +201,7 @@ impl<T: 'static + Database + std::marker::Unpin> Handler<NewClientConnection<T>>
 impl<T: 'static + Database + std::marker::Unpin> Handler<ClientRequest> for WsServer<T> {
     type Result = ();
 
-    fn handle(&mut self, msg: ClientRequest, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: ClientRequest, _ctx: &mut Self::Context) -> Self::Result {
         self.send_event(msg);
     }
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     client::{WsClient, ClientSession},
     database::Database,
-    game::{Card, Game, Team},
+    game::{Card, Game},
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -26,7 +26,8 @@ pub enum Event {
     NewGame {},
     GameStateUpdate { game: Game },
     UpdateClientSession { session: ClientSession },
-    SetSpyMaster {}
+    SetSpyMaster {},
+    NextTurn {}
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]
@@ -49,7 +50,8 @@ pub enum ClientRequestType {
     Message { text: String },
     FlipCard { coord: (usize, usize) },
     NewGame {},
-    SetSpyMaster { spymaster: bool }
+    SetSpyMaster { spymaster: bool },
+    NextTurn {}
 }
 
 #[derive(Message, Serialize, Deserialize, Debug, Clone)]

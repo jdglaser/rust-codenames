@@ -1,4 +1,4 @@
-use std::{collections::{hash_map, HashMap}, sync::{Mutex, Arc, MutexGuard}};
+use std::{collections::{HashMap}, sync::{Mutex, Arc, MutexGuard}};
 
 use rand::{Rng};
 use anyhow::{Result, bail, Context, anyhow};
@@ -18,6 +18,7 @@ pub trait Database {
     fn update_game(&mut self, game_id: usize, game_update: &Game) -> Result<()>;
     fn flip_card(&mut self, game_id: usize, coord: (usize, usize)) -> Result<Game>;
     fn get_game(&self, game_id: usize) -> Result<Game>;
+    fn next_turn(&mut self, game_id: usize) -> Result<Game>;
 }
 
 #[derive(Clone)]
@@ -172,6 +173,16 @@ impl Database for MemoryDatabase {
         *game = updated_game.clone();
         Ok(updated_game.clone())
     }
+
+    fn next_turn(&mut self, game_id: usize) -> Result<Game> {
+        let mut locked_database = self.get_lock();
+        let game = locked_database.games
+            .get_mut(&game_id)
+            .context(format!("Could not find game with id '{}'.", game_id))?;
+        let updated_game = game.next_turn();
+        *game = updated_game.clone();
+        Ok(updated_game)
+    }
 }
 
 #[cfg(test)]
@@ -179,7 +190,6 @@ mod tests {
     use crate::client::ClientSession;
 
     use super::{Database, MemoryDatabase};
-    use super::{Game};
 
     #[test]
     fn creates_gets_removes_room() {
