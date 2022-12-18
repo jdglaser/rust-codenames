@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader}, vec,
 };
 
 use log::{debug};
@@ -140,10 +140,20 @@ impl Game {
         let words = Game::get_words();
 
         let mut board: Board = Default::default();
+        let mut chosen_words: Vec<String> = vec![];
         for row in 0..5 {
             for col in 0..5 {
-                let random_word = words.choose(&mut rand::thread_rng()).unwrap().clone();
-                board[row][col] = Card::new(random_word, CardType::BYSTANDER, (row, col));
+                let mut random_word = words.choose(&mut rand::thread_rng()).unwrap().clone();
+                loop {
+                    if !chosen_words.contains(&random_word) {
+                        board[row][col] = Card::new(random_word.clone(), CardType::BYSTANDER, (row, col));
+                        chosen_words.push(random_word);
+                        break
+                    };
+
+                    debug!("Word already taken, trying again");
+                    random_word = words.choose(&mut rand::thread_rng()).unwrap().clone();
+                }
             }
         }
 
