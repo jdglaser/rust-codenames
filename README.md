@@ -2,6 +2,10 @@
 
 Codewords is a clone of the popular game Codenames I wrote as a hobby project. The backend is written in Rust using the actix-web framework and the frontend is written in React.js + Typescript.
 
+## Demo
+
+![demo](readme/example.gif)
+
 ## Running Locally
 
 Requirements:
